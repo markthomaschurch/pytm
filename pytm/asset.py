@@ -155,7 +155,7 @@ class Lambda(Asset):
     def _dfd_template(self) -> str:
         """Template for DFD representation."""
         return """{uniq_name} [
-    shape = {shape};
+{id}    shape = {shape};
 
     color = {color};
     fontcolor = "black";
@@ -181,6 +181,7 @@ class Lambda(Asset):
 
         return self._dfd_template().format(
             uniq_name=self._uniq_name(),
+            id=self._dfd_id(**kwargs),
             label=self._html_label(),
             color=color,
             shape=self._shape(),

@@ -31,7 +31,7 @@ class Boundary(Element):
         """Template for DFD representation."""
         return """subgraph cluster_{uniq_name} {{
     graph [
-        fontsize = 10;
+{id}        fontsize = 10;
         fontcolor = black;
         style = dashed;
         color = {color};
@@ -62,6 +62,7 @@ class Boundary(Element):
 
         return self._dfd_template().format(
             uniq_name=self._uniq_name(),
+            id=self._dfd_id(indent="        ", **kwargs),
             label=self._html_label(),
             color=self._color(**kwargs),
             edges=indent("\n".join(edges), "    "),

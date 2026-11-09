@@ -186,7 +186,7 @@ class Dataflow(Element):
     def _dfd_template(self) -> str:
         """Template for DFD representation."""
         return """{source} -> {sink} [
-    color = {color};
+{id}    color = {color};
     fontcolor = {color};
     dir = {direction};
     label = "{label}";
@@ -218,6 +218,7 @@ class Dataflow(Element):
         return self._dfd_template().format(
             source=self.source._uniq_name(),
             sink=self.sink._uniq_name(),
+            id=self._dfd_id(**kwargs),
             direction=direction,
             label=label,
             color=color,

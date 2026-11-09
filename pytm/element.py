@@ -219,7 +219,7 @@ class Element(BaseModel):
     def _dfd_template(self) -> str:
         """Template for DFD representation."""
         return """{uniq_name} [
-    shape = {shape};
+{id}    shape = {shape};
     color = {color};
     fontcolor = black;
     label = "{label}";
@@ -240,10 +240,23 @@ class Element(BaseModel):
 
         return self._dfd_template().format(
             uniq_name=self._uniq_name(),
+            id=self._dfd_id(**kwargs),
             label=self._label(),
             color=color,
             shape=self._shape(),
         )
+
+    def _dfd_id(self, indent: str = "    ", **kwargs: Any) -> str:
+        """Get the DOT ``id`` attribute line, or "" unless ``ids=True``.
+
+        The id is the element's :func:`pytm.anchors.anchor`, so Graphviz's
+        SVG and JSON output can be matched back to model elements.
+        """
+        if not kwargs.get("ids", False):
+            return ""
+        from .anchors import anchor
+
+        return f'{indent}id = "{anchor(self)}";\n'
 
     def _color(self) -> str:
         """Get the color for this element."""
