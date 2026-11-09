@@ -1,11 +1,15 @@
+import os
 import random
 import shutil
 import struct
+import subprocess
+import sys
 import xml.etree.ElementTree as ET
 
 import pytest
 
 from pytm import TM, Actor, Boundary, Data, Dataflow, Datastore, Server, thumbnails
+from pytm.report_util import ReportUtils
 from pytm.thumbnails import (
     HIGHLIGHT_STROKE,
     SVG_NS,
@@ -283,3 +287,127 @@ def test_unsupported_format(tmp_path):
 
     with pytest.raises(ValueError):
         render_thumbnails(tm, tmp_path, fmt="gif")
+
+
+# ---------------------------------------------------------------------------
+# Links for report templates
+# ---------------------------------------------------------------------------
+
+
+class TestTemplateLinks:
+    def test_no_thumbnail_rendered(self):
+        _, m = _model()
+
+        assert ReportUtils.getThumbnail(m["web"]) == ""
+        assert ReportUtils.getThumbnailMarkdown(m["web"]) == ""
+        assert ReportUtils.getThumbnail("not a model object") == ""
+
+    def test_markdown_escapes_name_and_wraps_links_with_spaces(self):
+        TM("links tm", description="test")
+        web = Server("Web [prod]")
+        TM._thumbnails["server-web-prod"] = "my thumbs/server-web-prod.png"
+
+        assert ReportUtils.getThumbnailMarkdown(web) == (
+            "![Web \\[prod\\]](<my thumbs/server-web-prod.png>)"
+        )
+
+    def test_reset_clears_links(self):
+        TM._thumbnails["server-x"] = "x.png"
+        TM.reset()
+
+        assert TM._thumbnails == {}
+
+    @needs_dot
+    def test_render_registers_links(self, tmp_path):
+        tm, m = _model()
+
+        render_thumbnails(tm, tmp_path / "out", fmt="svg")
+        default = ReportUtils.getThumbnail(m["web"])
+        render_thumbnails(tm, tmp_path / "out", fmt="svg", link_prefix="thumbs/")
+
+        assert default == f"{(tmp_path / 'out').as_posix()}/server-web-server.svg"
+        assert ReportUtils.getThumbnail(m["web"]) == "thumbs/server-web-server.svg"
+        assert ReportUtils.getThumbnailMarkdown(m["token"]) == (
+            "![Token](thumbs/data-token.svg)"
+        )
+
+    @needs_dot
+    def test_report_copies_resolve_to_the_same_links(self, tmp_path):
+        tm, m = _model()
+        tm.resolve()
+        render_thumbnails(tm, tmp_path, fmt="svg", link_prefix="t")
+        template = tmp_path / "template.md"
+        template.write_text(
+            "{assets:repeat:{{item:call:getThumbnailMarkdown}}\n}", encoding="utf-8"
+        )
+
+        report = tm.report(str(template))
+
+        assert report.splitlines() == [
+            "![Web Server](t/server-web-server.svg)",
+            "![DB](t/datastore-db.svg)",
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Command line
+# ---------------------------------------------------------------------------
+
+CLI_MODEL = """
+from pytm import TM, Actor, Server, Dataflow
+tm = TM("cli tm", description="test")
+Dataflow(Actor("User"), Server("Web Server"), "Login")
+tm.process()
+"""
+
+
+def _run_cli(tmp_path, *args, env=None):
+    model = tmp_path / "model.py"
+    model.write_text(CLI_MODEL, encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, str(model), *args],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+@needs_dot
+def test_cli_writes_thumbnails_and_report_links(tmp_path):
+    template = tmp_path / "template.md"
+    template.write_text(
+        "{assets:repeat:{{item:call:getThumbnailMarkdown}}\n}", encoding="utf-8"
+    )
+
+    result = _run_cli(
+        tmp_path,
+        "--thumbnails",
+        "out/thumbs",
+        "--thumbnail-format",
+        "svg",
+        "--thumbnail-prefix",
+        "thumbs",
+        "--report",
+        str(template),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert sorted(p.name for p in (tmp_path / "out/thumbs").iterdir()) == [
+        "actor-user.svg",
+        "dataflow-login.svg",
+        "server-web-server.svg",
+    ]
+    assert result.stdout.strip() == "![Web Server](thumbs/server-web-server.svg)"
+
+
+def test_cli_reports_missing_graphviz(tmp_path):
+    env = dict(os.environ, PATH=str(tmp_path / "empty-path"))
+
+    result = _run_cli(
+        tmp_path, "--thumbnails", "out", "--thumbnail-format", "svg", env=env
+    )
+
+    assert result.returncode == 127
+    assert "while writing thumbnails to out" in result.stderr
+    assert "dot is required" in result.stderr

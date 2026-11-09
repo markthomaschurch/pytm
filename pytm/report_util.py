@@ -150,3 +150,33 @@ class ReportUtils:
         if isinstance(obj, Threat):
             return anchor_for_threat_id(obj.id)
         return f"ERROR: getThreatAnchor method is not valid for {type(obj).__name__}"
+
+    @staticmethod
+    def getThumbnail(obj: Any) -> str:
+        """Return the link to *obj*'s thumbnail, or "" if none was rendered.
+
+        Thumbnails are registered by :func:`pytm.thumbnails.render_thumbnails`
+        (``--thumbnails DIR`` on the command line).
+        """
+        from pytm import TM
+        from pytm.anchors import anchor
+
+        try:
+            return TM._thumbnails.get(anchor(obj), "")
+        except TypeError:
+            return ""
+
+    @staticmethod
+    def getThumbnailMarkdown(obj: Any) -> str:
+        """Return a Markdown image of *obj*'s thumbnail, or "" if none."""
+        link = ReportUtils.getThumbnail(obj)
+        if not link:
+            return ""
+        from pytm.anchors import label
+
+        name = label(obj)
+        for char in "\\[]":  # backslash first, or its escapes get doubled
+            name = name.replace(char, f"\\{char}")
+        if any(char.isspace() for char in link):
+            link = f"<{link}>"
+        return f"![{name}]({link})"

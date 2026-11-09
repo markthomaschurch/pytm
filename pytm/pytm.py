@@ -769,6 +769,30 @@ def get_args():
     )
     parser.add_argument("--json", help="output a JSON file")
     parser.add_argument(
+        "--thumbnails",
+        metavar="DIR",
+        help=(
+            "write a cropped DFD thumbnail for every element to DIR "
+            "(needs Graphviz; PNG also needs rsvg-convert)"
+        ),
+    )
+    parser.add_argument(
+        "--thumbnail-format",
+        dest="thumbnail_format",
+        choices=["png", "svg"],
+        default="png",
+        help="thumbnail image format (default: png)",
+    )
+    parser.add_argument(
+        "--thumbnail-prefix",
+        dest="thumbnail_prefix",
+        metavar="PREFIX",
+        help=(
+            "path to the thumbnails as seen from the report, e.g. 'thumbnails' "
+            "when the report is written next to DIR (default: DIR)"
+        ),
+    )
+    parser.add_argument(
         "--levels",
         type=int,
         nargs="+",

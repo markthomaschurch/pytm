@@ -60,6 +60,8 @@ class TMState:
     anchors: set[str] = field(default_factory=set)
     # dataflows hidden by check() as duplicates (onDuplicates=Action.IGNORE)
     ignored_duplicates: List["Dataflow"] = field(default_factory=list)
+    # anchor -> link to the element's thumbnail, filled by render_thumbnails()
+    thumbnails: dict[str, str] = field(default_factory=dict)
 
 
 class _StateAttribute:
@@ -134,6 +136,7 @@ class TM(BaseModel, metaclass=TMModelMetaclass):
     _boundaries: ClassVar[_StateAttribute] = _StateAttribute("boundaries")
     _data: ClassVar[_StateAttribute] = _StateAttribute("data")
     _threatsExcluded: ClassVar[_StateAttribute] = _StateAttribute("threats_excluded")
+    _thumbnails: ClassVar[_StateAttribute] = _StateAttribute("thumbnails")
 
     @classmethod
     def _get_state(cls) -> TMState:
@@ -437,11 +440,27 @@ a brief description of the system being modeled."""
             print(self.dfd(colormap=getattr(result, "colormap", False), levels=levels))
 
         needs_resolution = any(
-            getattr(result, attr, None) for attr in ("report", "json", "stale_days")
+            getattr(result, attr, None)
+            for attr in ("report", "json", "stale_days", "thumbnails")
         )
 
         if needs_resolution:
             self.resolve()
+
+        if getattr(result, "thumbnails", None):
+            from .thumbnails import ThumbnailError, render_thumbnails
+
+            try:
+                render_thumbnails(
+                    self,
+                    result.thumbnails,
+                    fmt=getattr(result, "thumbnail_format", "png"),
+                    link_prefix=getattr(result, "thumbnail_prefix", None),
+                    colormap=getattr(result, "colormap", False),
+                    levels=set(getattr(result, "levels", []) or []),
+                )
+            except (ThumbnailError, OSError) as exc:
+                raise UIError(exc, f"while writing thumbnails to {result.thumbnails}")
 
         if getattr(result, "json", None):
             try:

@@ -81,8 +81,9 @@ All available arguments:
 ```text
 usage: tm.py [-h] [--debug] [--dfd] [--report REPORT] [--exclude EXCLUDE]
              [--seq] [--list] [--colormap] [--describe DESCRIBE]
-             [--list-elements] [--json JSON] [--levels LEVELS [LEVELS ...]]
-             [--stale_days STALE_DAYS]
+             [--list-elements] [--json JSON] [--thumbnails DIR]
+             [--thumbnail-format {png,svg}] [--thumbnail-prefix PREFIX]
+             [--levels LEVELS [LEVELS ...]] [--stale_days STALE_DAYS]
 
 options:
   -h, --help            show this help message and exit
@@ -97,6 +98,14 @@ options:
   --describe DESCRIBE   describe the properties available for a given element
   --list-elements       list all elements which can be part of a threat model
   --json JSON           output a JSON file
+  --thumbnails DIR      write a cropped DFD thumbnail for every element to DIR
+                        (needs Graphviz; PNG also needs rsvg-convert)
+  --thumbnail-format {png,svg}
+                        thumbnail image format (default: png)
+  --thumbnail-prefix PREFIX
+                        path to the thumbnails as seen from the report, e.g.
+                        'thumbnails' when the report is written next to DIR
+                        (default: DIR)
   --levels LEVELS [LEVELS ...]
                         Select levels to be drawn in the threat model (int
                         separated by comma).
@@ -389,6 +398,25 @@ The example above uses two nested loops, so items in the inner loop must be esca
 Literal braces inside a loop are doubled like any other, so the pandoc heading attribute `{#...}` is written `{{{{#...}}}}` in the loop above.
 
 `getThreatAnchor` returns the anchor of the threat behind a finding, for linking a finding to its threat's details.
+
+#### Element thumbnails
+
+`--thumbnails DIR` writes a small image for every element, dataflow, boundary and piece of data: the DFD with that object highlighted in blue, cropped to it and the elements directly connected to it. Unrelated elements inside the crop are faded. Files are named after the object's anchor (`DIR/server-web-server.png`). Thumbnails follow `--colormap` and `--levels`, and need Graphviz's `dot`; PNG (the default) also needs `rsvg-convert` (`librsvg2-bin` on Debian/Ubuntu). Use `--thumbnail-format svg` for SVG.
+
+In a template, `getThumbnailMarkdown` returns a Markdown image of an element's thumbnail (or nothing, if it has none) and `getThumbnail` returns just the link. `--thumbnail-prefix` sets how the report refers to `DIR`, so links work when the report is written somewhere else:
+
+```bash
+./tm.py --thumbnails report/thumbnails --thumbnail-prefix thumbnails \
+        --report docs/basic_template.md > report/report.md
+```
+
+```text
+{assets:repeat:### {{item.name}} {{{{#{{item:call:getAnchor}}}}}}
+
+{{item:call:getThumbnailMarkdown}}
+
+}
+```
 
 ### Overrides
 

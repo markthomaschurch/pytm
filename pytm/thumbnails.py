@@ -338,6 +338,7 @@ def render_thumbnails(
     dim: float = 0.3,
     padding: float = 16.0,
     zoom: float = 1.0,
+    link_prefix: str | None = None,
     **dfd_kwargs: Any,
 ) -> dict[str, Path]:
     """Render a thumbnail for every element and piece of data in *tm*.
@@ -352,6 +353,10 @@ def render_thumbnails(
         dim: Opacity of unrelated elements inside the crop (0 to 1).
         padding: Space around the cropped area, in points.
         zoom: PNG scale factor passed to ``rsvg-convert``.
+        link_prefix: How report templates should refer to *out_dir*, e.g.
+            ``"thumbnails"`` when the report is written next to that
+            directory. Defaults to *out_dir* itself. Links are registered so
+            ``ReportUtils.getThumbnail`` can return them.
         **dfd_kwargs: Passed to :meth:`TM.dfd`, e.g. ``colormap=True`` or
             ``levels=[0]``, so thumbnails match the main diagram.
 
@@ -376,6 +381,7 @@ def render_thumbnails(
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    prefix = (out.as_posix() if link_prefix is None else link_prefix).rstrip("/")
     written: dict[str, Path] = {}
     seen: set[str] = set()
     for obj in [*TM._elements, *TM._data]:
@@ -415,4 +421,5 @@ def render_thumbnails(
                     f"{result.stderr.decode(errors='replace').strip()}"
                 )
         written[name] = path
+        TM._thumbnails[name] = f"{prefix}/{path.name}" if prefix else path.name
     return written
