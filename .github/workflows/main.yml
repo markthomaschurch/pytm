@@ -39,3 +39,41 @@ jobs:
         run: poetry install --with dev
       - name: Run tests
         run: poetry run pytest
+
+  # Build the distributions and check the installed wheel works on its own:
+  # outside the source tree, with only what the wheel ships.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Build sdist and wheel
+        run: |
+          pip install build
+          python -m build
+      - name: Check wheel contents
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
+          assert "pytm/threatlib/threats.json" in names, "threat library missing"
+          assert not any(n.endswith("TODO.txt") for n in names), "TODO.txt shipped"
+          PY
+      - name: Install the wheel in a clean environment
+        run: |
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install dist/*.whl
+      - name: Run the example model from outside the source tree
+        run: |
+          work=$(mktemp -d)
+          cp tm.py "$work/model.py"
+          cd "$work"
+          /tmp/venv/bin/pytm --version
+          /tmp/venv/bin/python -I model.py --list > /dev/null
+          /tmp/venv/bin/python -I model.py --dfd | head -1 | grep -q "^digraph tm {"
+          /tmp/venv/bin/python -I model.py --seq | head -1 | grep -q "^@startuml"
+          /tmp/venv/bin/python -I model.py --json out.json && test -s out.json
+          /tmp/venv/bin/pytm model.py --dfd | head -1 | grep -q "^digraph tm {"
