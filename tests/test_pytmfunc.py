@@ -2012,3 +2012,25 @@ def test_colormap_colour_per_severity(severity, colour):
     from pytm.element import sev_to_color
 
     assert sev_to_color(severity).split(";")[0].strip() == colour
+
+
+def test_colormap_marks_elements_without_findings_as_neutral():
+    from pytm.element import sev_to_color
+
+    assert sev_to_color(0, has_findings=False) == "gray50"
+    assert sev_to_color(5, has_findings=False) == "gray50"
+    # Info findings (severity 0) are still green.
+    assert sev_to_color(0).startswith("darkgreen")
+
+    random.seed(0)
+    TM.reset()
+    tm = TM("neutral tm", description="aaa")
+    quiet = Actor("Quiet")
+    tm.check()
+    TM._threats[:] = []
+    tm.resolve()
+
+    output = tm.dfd(colormap=True)
+    node = output[output.index(quiet._uniq_name()) :].split("]")[0]
+    assert "color = gray50;" in node
+    assert "fillcolor" not in node

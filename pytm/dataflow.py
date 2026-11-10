@@ -192,7 +192,7 @@ class Dataflow(Element):
         color = self._color()
 
         if kwargs.get("colormap", False):
-            color = sev_to_color(self.severity)
+            color = sev_to_color(self.severity, bool(self.findings))
 
         direction = "forward"
         label = self._label()

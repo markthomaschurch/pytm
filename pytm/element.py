@@ -19,12 +19,15 @@ if TYPE_CHECKING:
     from .finding import Finding
 
 
-def sev_to_color(sev: int) -> str:
+def sev_to_color(sev: int, has_findings: bool = True) -> str:
     """Return a Graphviz color declaration based on severity.
 
     Very High (5) is red, High (4) orange, Medium (3) gold, and Low, Very
-    Low and Info (2 to 0) green.
+    Low and Info (2 to 0) green. An element without findings is grey and
+    unfilled, so it can't be mistaken for a low-severity one.
     """
+    if not has_findings:
+        return "gray50"
     if sev == 5:
         return 'firebrick3; fillcolor="#b2222222"; style=filled '
     if sev == 4:
@@ -224,7 +227,7 @@ class Element(BaseModel):
 
         color = self._color()
         if kwargs.get("colormap", False):
-            color = sev_to_color(self.severity)
+            color = sev_to_color(self.severity, bool(self.findings))
 
         return self._dfd_template().format(
             uniq_name=self._uniq_name(),

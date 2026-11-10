@@ -86,7 +86,7 @@ digraph tm {
 
         actor_User_d2006ce1bb [
             shape = square;
-            color = darkgreen; fillcolor="#00630022"; style=filled;
+            color = gray50;
             fontcolor = black;
             label = "User";
             margin = 0.02;

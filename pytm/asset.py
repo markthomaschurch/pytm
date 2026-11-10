@@ -178,7 +178,7 @@ class Lambda(Asset):
         color = self._color()
 
         if kwargs.get("colormap", False):
-            color = sev_to_color(self.severity)
+            color = sev_to_color(self.severity, bool(self.findings))
 
         return self._dfd_template().format(
             uniq_name=self._uniq_name(),
