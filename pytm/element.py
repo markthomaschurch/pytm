@@ -6,10 +6,11 @@ import uuid as uuid_module
 from hashlib import sha224
 from html import escape as html_escape
 from textwrap import wrap
-from typing import Any, List, Optional, Set, TYPE_CHECKING
+from typing import Annotated, Any, List, Optional, Set, TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
+from .roles import Role
 from .base import Assumption, Controls
 from .enums import Classification, TLSVersion
 
@@ -66,52 +67,54 @@ class Element(BaseModel):
         use_attribute_docstrings=True,
     )
 
-    name: str = Field(description="Name of the element")
-    description: str = Field(default="", description="Description of the element")
-    inBoundary: Optional["Boundary"] = Field(
+    name: Annotated[str, Role.BOOKKEEPING] = Field(description="Name of the element")
+    description: Annotated[str, Role.BOOKKEEPING] = Field(
+        default="", description="Description of the element"
+    )
+    inBoundary: Annotated[Optional["Boundary"], Role.DESCRIPTIVE] = Field(
         default=None,
         description="Trust boundary this element exists in",
     )
-    inScope: bool = Field(
+    inScope: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=True, description="Is the element in scope of the threat model"
     )
-    maxClassification: Classification = Field(
+    maxClassification: Annotated[Classification, Role.DESCRIPTIVE] = Field(
         default=Classification.UNKNOWN,
         description="Maximum data classification this element can handle",
     )
-    minTLSVersion: TLSVersion = Field(
+    minTLSVersion: Annotated[TLSVersion, Role.SAFEGUARD] = Field(
         default=TLSVersion.NONE,
         description="Minimum TLS version required",
     )
-    findings: List["Finding"] = Field(
+    findings: Annotated[List["Finding"], Role.BOOKKEEPING] = Field(
         default_factory=list,
         description="Threats that apply to this element",
     )
-    overrides: List["Finding"] = Field(
+    overrides: Annotated[List["Finding"], Role.BOOKKEEPING] = Field(
         default_factory=list,
         description="Overrides to findings, allowing to set a custom response, CVSS score or override other attributes",
     )
-    assumptions: List[Assumption] = Field(
+    assumptions: Annotated[List[Assumption], Role.BOOKKEEPING] = Field(
         default_factory=list,
         description="Assumptions about the element. These optionally allow to exclude threats with the given SIDs",
     )
-    levels: Set[int] = Field(
+    levels: Annotated[Set[int], Role.BOOKKEEPING] = Field(
         default_factory=lambda: {0},
         description="List of levels (0, 1, 2, ...) to be drawn in the model",
     )
-    sourceFiles: List[str] = Field(
+    sourceFiles: Annotated[List[str], Role.BOOKKEEPING] = Field(
         default_factory=list,
         description="Location of the source code that describes this element relative to the directory of the model script",
     )
-    controls: Controls = Field(
+    controls: Annotated[Controls, Role.BOOKKEEPING] = Field(
         default_factory=Controls, description="Security controls for this element"
     )
-    severity: int = Field(
+    severity: Annotated[int, Role.BOOKKEEPING] = Field(
         default=0, description="Severity level of threats affecting this element"
     )
 
     # Internal attributes
-    uuid: uuid_module.UUID = Field(
+    uuid: Annotated[uuid_module.UUID, Role.BOOKKEEPING] = Field(
         default_factory=lambda: uuid_module.UUID(int=random.getrandbits(128))
     )
     # Link anchor, reserved when the element is created (see pytm.anchors).

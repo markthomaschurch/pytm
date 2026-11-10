@@ -64,6 +64,25 @@ The build backend is [hatchling](https://hatch.pypa.io/latest/), driven entirely
     uv build
     python -m build
 
+### Adding model attributes
+
+Every attribute of an element, dataflow, piece of data or control declares
+its *role* next to its type (see `pytm/roles.py`):
+
+    usesVPN: Annotated[bool, Role.SAFEGUARD] = Field(default=False, ...)
+
+- `Role.SAFEGUARD`: a security measure; enabling or tightening it mitigates
+  threats (controls, encryption, TLS versions, VPN, protocol, ...).
+- `Role.DESCRIPTIVE`: a fact about the system that threat conditions test
+  (`isResponse`, `inScope`, a data item's `classification`, ...).
+- `Role.BOOKKEEPING`: model plumbing and documentation (`name`, `uuid`,
+  `findings`, ...).
+
+Fields of `Controls` are safeguards by default. Reports use roles, for
+example, to tell real mitigations apart from changes that only describe the
+system differently. `tests/test_roles.py` fails for any attribute without a
+role.
+
 ### Bumping the version
 
 The version lives in `[project].version` - edit it there.

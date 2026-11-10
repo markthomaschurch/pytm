@@ -1,8 +1,9 @@
 """Dataflow model - represents data flows between elements."""
 
-from typing import Optional
+from typing import Annotated, Optional
 from pydantic import Field, field_validator, model_validator
 
+from .roles import Role
 from .element import Element, sev_to_color
 from .enums import Classification, TLSVersion
 from .base import DataSet
@@ -11,36 +12,50 @@ from .base import DataSet
 class Dataflow(Element):
     """A data flow from a source to a sink."""
 
-    source: Element = Field(description="Source element of the data flow")
-    sink: Element = Field(description="Sink element of the data flow")
-    isResponse: bool = Field(
+    source: Annotated[Element, Role.DESCRIPTIVE] = Field(
+        description="Source element of the data flow"
+    )
+    sink: Annotated[Element, Role.DESCRIPTIVE] = Field(
+        description="Sink element of the data flow"
+    )
+    isResponse: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Is a response to another data flow"
     )
-    response: Optional["Dataflow"] = Field(
+    response: Annotated[Optional["Dataflow"], Role.DESCRIPTIVE] = Field(
         default=None, description="Another data flow that is a response to this one"
     )
-    responseTo: Optional["Dataflow"] = Field(
+    responseTo: Annotated[Optional["Dataflow"], Role.DESCRIPTIVE] = Field(
         default=None, description="Is a response to this data flow"
     )
-    srcPort: int = Field(default=-1, description="Source TCP port")
-    dstPort: int = Field(default=-1, description="Destination TCP port")
-    tlsVersion: TLSVersion = Field(
+    srcPort: Annotated[int, Role.DESCRIPTIVE] = Field(
+        default=-1, description="Source TCP port"
+    )
+    dstPort: Annotated[int, Role.DESCRIPTIVE] = Field(
+        default=-1, description="Destination TCP port"
+    )
+    tlsVersion: Annotated[TLSVersion, Role.SAFEGUARD] = Field(
         default=TLSVersion.NONE, description="TLS version used"
     )
-    protocol: str = Field(default="", description="Protocol used in this data flow")
-    data: DataSet = Field(
+    protocol: Annotated[str, Role.SAFEGUARD] = Field(
+        default="", description="Protocol used in this data flow"
+    )
+    data: Annotated[DataSet, Role.DESCRIPTIVE] = Field(
         default_factory=DataSet,
         description="pytm.Data object(s) in incoming data flows",
     )
-    order: int = Field(
+    order: Annotated[int, Role.BOOKKEEPING] = Field(
         default=-1, description="Number of this data flow in the threat model"
     )
-    implementsCommunicationProtocol: bool = Field(
+    implementsCommunicationProtocol: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this flow implement a communication protocol"
     )
-    note: str = Field(default="", description="Note about this data flow")
-    usesVPN: bool = Field(default=False, description="Does this flow use VPN")
-    usesSessionTokens: bool = Field(
+    note: Annotated[str, Role.BOOKKEEPING] = Field(
+        default="", description="Note about this data flow"
+    )
+    usesVPN: Annotated[bool, Role.SAFEGUARD] = Field(
+        default=False, description="Does this flow use VPN"
+    )
+    usesSessionTokens: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this flow use session tokens"
     )
 

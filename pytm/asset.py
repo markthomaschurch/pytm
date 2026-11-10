@@ -1,9 +1,10 @@
 """Asset models - base Asset class and specific asset implementations."""
 
-from typing import List, TYPE_CHECKING
+from typing import Annotated, List, TYPE_CHECKING
 
 from pydantic import Field, field_validator
 
+from .roles import Role
 from .element import Element, sev_to_color
 from .base import DataSet
 
@@ -26,30 +27,34 @@ class Asset(Element):
         OS (str): Operating system
     """
 
-    port: int = Field(
+    port: Annotated[int, Role.DESCRIPTIVE] = Field(
         default=-1, description="Default TCP port for incoming data flows"
     )
-    protocol: str = Field(
+    protocol: Annotated[str, Role.SAFEGUARD] = Field(
         default="", description="Default network protocol for incoming data flows"
     )
-    data: DataSet = Field(
+    data: Annotated[DataSet, Role.DESCRIPTIVE] = Field(
         default_factory=DataSet,
         description="pytm.Data object(s) in incoming data flows",
     )
-    inputs: List["Dataflow"] = Field(
+    inputs: Annotated[List["Dataflow"], Role.BOOKKEEPING] = Field(
         default_factory=list, description="incoming Dataflows"
     )
-    outputs: List["Dataflow"] = Field(
+    outputs: Annotated[List["Dataflow"], Role.BOOKKEEPING] = Field(
         default_factory=list, description="outgoing Dataflows"
     )
-    onAWS: bool = Field(default=False, description="Is this asset on AWS?")
-    handlesResources: bool = Field(
+    onAWS: Annotated[bool, Role.DESCRIPTIVE] = Field(
+        default=False, description="Is this asset on AWS?"
+    )
+    handlesResources: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this asset handle resources?"
     )
-    usesEnvironmentVariables: bool = Field(
+    usesEnvironmentVariables: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this asset use environment variables?"
     )
-    OS: str = Field(default="", description="Operating system")
+    OS: Annotated[str, Role.DESCRIPTIVE] = Field(
+        default="", description="Operating system"
+    )
 
     @field_validator("data", mode="before")
     @classmethod
@@ -126,9 +131,13 @@ class Lambda(Asset):
         implementsAPI (bool): Does this lambda implement an API?
     """
 
-    onAWS: bool = Field(default=True, description="Is this lambda on AWS?")
-    environment: str = Field(default="", description="Environment for the lambda")
-    implementsAPI: bool = Field(
+    onAWS: Annotated[bool, Role.DESCRIPTIVE] = Field(
+        default=True, description="Is this lambda on AWS?"
+    )
+    environment: Annotated[str, Role.DESCRIPTIVE] = Field(
+        default="", description="Environment for the lambda"
+    )
+    implementsAPI: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this lambda implement an API?"
     )
 
@@ -211,12 +220,16 @@ class Server(Asset):
         usesXMLParser (bool): Does this server use XML parser?
     """
 
-    usesSessionTokens: bool = Field(
+    usesSessionTokens: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this server use session tokens?"
     )
-    usesCache: bool = Field(default=False, description="Does this server use cache?")
-    usesVPN: bool = Field(default=False, description="Does this server use VPN?")
-    usesXMLParser: bool = Field(
+    usesCache: Annotated[bool, Role.DESCRIPTIVE] = Field(
+        default=False, description="Does this server use cache?"
+    )
+    usesVPN: Annotated[bool, Role.SAFEGUARD] = Field(
+        default=False, description="Does this server use VPN?"
+    )
+    usesXMLParser: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this server use XML parser?"
     )
 
@@ -263,7 +276,7 @@ class ExternalEntity(Asset):
         hasPhysicalAccess (bool): Does this external entity have physical access?
     """
 
-    hasPhysicalAccess: bool = Field(
+    hasPhysicalAccess: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this external entity have physical access?"
     )
 
@@ -304,10 +317,10 @@ class Agent(Asset):
         validatesToolLaunchConfig (bool): Does this agent validate tool/server launch configuration before execution?
     """
 
-    usesExternalTools: bool = Field(
+    usesExternalTools: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this agent use external tools or servers?"
     )
-    validatesToolLaunchConfig: bool = Field(
+    validatesToolLaunchConfig: Annotated[bool, Role.SAFEGUARD] = Field(
         default=False,
         description="Does this agent validate tool/server launch configuration before execution?",
     )
@@ -364,36 +377,40 @@ class LLM(Asset):
         hasFineTuning (bool): Has this LLM been fine-tuned?
     """
 
-    isThirdParty: bool = Field(
+    isThirdParty: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=True, description="Is this LLM a third-party service?"
     )
-    isSelfHosted: bool = Field(default=False, description="Is this LLM self-hosted?")
-    processesPersonalData: bool = Field(
+    isSelfHosted: Annotated[bool, Role.DESCRIPTIVE] = Field(
+        default=False, description="Is this LLM self-hosted?"
+    )
+    processesPersonalData: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this LLM process personal data?"
     )
-    retainsUserData: bool = Field(
+    retainsUserData: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this LLM retain user data?"
     )
-    hasAgentCapabilities: bool = Field(
+    hasAgentCapabilities: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this LLM have agent capabilities?"
     )
-    hasAccessToSensitiveSystems: bool = Field(
+    hasAccessToSensitiveSystems: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this LLM have access to sensitive systems?"
     )
-    executesCode: bool = Field(default=False, description="Does this LLM execute code?")
-    hasContentFiltering: bool = Field(
+    executesCode: Annotated[bool, Role.DESCRIPTIVE] = Field(
+        default=False, description="Does this LLM execute code?"
+    )
+    hasContentFiltering: Annotated[bool, Role.SAFEGUARD] = Field(
         default=False, description="Does this LLM have content filtering?"
     )
-    hasSystemPrompt: bool = Field(
+    hasSystemPrompt: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=True, description="Does this LLM have a system prompt?"
     )
-    processesUntrustedInput: bool = Field(
+    processesUntrustedInput: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=True, description="Does this LLM process untrusted input?"
     )
-    hasRAG: bool = Field(
+    hasRAG: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this LLM use retrieval-augmented generation?"
     )
-    hasFineTuning: bool = Field(
+    hasFineTuning: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Has this LLM been fine-tuned?"
     )
 

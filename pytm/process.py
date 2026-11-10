@@ -1,8 +1,9 @@
 """Process model - represents processes that handle data."""
 
-from typing import TYPE_CHECKING
+from typing import Annotated, TYPE_CHECKING
 from pydantic import Field
 
+from .roles import Role
 from .asset import Asset
 
 if TYPE_CHECKING:
@@ -30,21 +31,23 @@ class Process(Asset):
         allowsClientSideScripting (bool): Does this process allow client-side scripting?
     """
 
-    codeType: str = Field(
+    codeType: Annotated[str, Role.DESCRIPTIVE] = Field(
         default="Unmanaged", description="Type of code running in this process"
     )
-    implementsCommunicationProtocol: bool = Field(
+    implementsCommunicationProtocol: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False,
         description="Does this process implement a communication protocol?",
     )
-    tracksExecutionFlow: bool = Field(
+    tracksExecutionFlow: Annotated[bool, Role.SAFEGUARD] = Field(
         default=False, description="Does this process track execution flow?"
     )
-    implementsAPI: bool = Field(
+    implementsAPI: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this process implement an API?"
     )
-    environment: str = Field(default="", description="Environment for this process")
-    allowsClientSideScripting: bool = Field(
+    environment: Annotated[str, Role.DESCRIPTIVE] = Field(
+        default="", description="Environment for this process"
+    )
+    allowsClientSideScripting: Annotated[bool, Role.SAFEGUARD] = Field(
         default=False, description="Does this process allow client-side scripting?"
     )
 

@@ -1,8 +1,9 @@
 """Data model - represents data that traverses the threat model."""
 
-from typing import List, Optional, TYPE_CHECKING
+from typing import Annotated, List, Optional, TYPE_CHECKING
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
+from .roles import Role
 from .enums import Classification, Lifetime
 
 if TYPE_CHECKING:
@@ -32,39 +33,43 @@ class Data(BaseModel):
     # Link anchor, reserved when the data is created (see pytm.anchors).
     _anchor: Optional[str] = PrivateAttr(default=None)
 
-    name: str = Field(description="Name of the data")
-    description: str = Field(default="", description="Description of the data")
-    format: str = Field(default="", description="Format of the data")
-    classification: Classification = Field(
+    name: Annotated[str, Role.BOOKKEEPING] = Field(description="Name of the data")
+    description: Annotated[str, Role.BOOKKEEPING] = Field(
+        default="", description="Description of the data"
+    )
+    format: Annotated[str, Role.DESCRIPTIVE] = Field(
+        default="", description="Format of the data"
+    )
+    classification: Annotated[Classification, Role.DESCRIPTIVE] = Field(
         default=Classification.UNKNOWN,
         description="Level of classification for this piece of data",
     )
-    isPII: bool = Field(
+    isPII: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False,
         description="Does the data contain personally identifiable information. Should always be encrypted both in transmission and at rest.",
     )
-    isCredentials: bool = Field(
+    isCredentials: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False,
         description="Does the data contain authentication information, like passwords or cryptographic keys, with or without expiration date. Should always be encrypted in transmission. If stored, they should be hashed using a cryptographic hash function.",
     )
-    credentialsLife: Lifetime = Field(
+    credentialsLife: Annotated[Lifetime, Role.SAFEGUARD] = Field(
         default=Lifetime.NONE,
         description="Credentials lifetime, describing if and how credentials can be revoked",
     )
-    isStored: bool = Field(
+    isStored: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False,
         description="Is the data going to be stored by the target or only processed. If only derivative data is stored (a hash) it can be set to False.",
     )
-    isDestEncryptedAtRest: bool = Field(
+    isDestEncryptedAtRest: Annotated[bool, Role.SAFEGUARD] = Field(
         default=False, description="Is data encrypted at rest at dest?"
     )
-    isSourceEncryptedAtRest: bool = Field(
+    isSourceEncryptedAtRest: Annotated[bool, Role.SAFEGUARD] = Field(
         default=False, description="Is data encrypted at rest at source?"
     )
-    carriedBy: List["Dataflow"] = Field(
+    carriedBy: Annotated[List["Dataflow"], Role.BOOKKEEPING] = Field(
         default_factory=list, description="Dataflows that carries this piece of data"
     )
-    processedBy: List["Element"] = Field(
+    processedBy: Annotated[List["Element"], Role.BOOKKEEPING] = Field(
         default_factory=list,
         description="Elements that store/process this piece of data",
     )
