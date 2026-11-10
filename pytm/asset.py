@@ -176,15 +176,21 @@ class Lambda(Asset):
             return ""
 
         color = self._color()
+        shape = self._shape()
 
         if kwargs.get("colormap", False):
             color = sev_to_color(self.severity)
+            # Graphviz keeps only the last "style", so combine the shape's
+            # rounded corners with the colormap's fill.
+            if "style=filled" in color and "style=rounded" in shape:
+                shape = shape.replace("; style=rounded", "")
+                color = color.replace("style=filled", 'style="rounded,filled"')
 
         return self._dfd_template().format(
             uniq_name=self._uniq_name(),
             label=self._html_label(),
             color=color,
-            shape=self._shape(),
+            shape=shape,
         )
 
     def _shape(self) -> str:
