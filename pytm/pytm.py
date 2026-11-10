@@ -609,7 +609,7 @@ def serialize(obj, nested=False):
         if attr_name in skip_attrs:
             continue
 
-        if isinstance(obj, Element) and attr_name in {"uuid", "_is_drawn", "is_drawn"}:
+        if isinstance(obj, Element) and attr_name == "uuid":
             continue
         if isinstance(obj, Finding) and attr_name == "element":
             continue

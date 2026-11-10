@@ -114,7 +114,6 @@ class Element(BaseModel):
     uuid: uuid_module.UUID = Field(
         default_factory=lambda: uuid_module.UUID(int=random.getrandbits(128))
     )
-    is_drawn: bool = Field(default=False, exclude=True)
 
     _WRITE_ONCE_FIELDS = {"name"}
 
@@ -210,7 +209,6 @@ class Element(BaseModel):
 
     def dfd(self, **kwargs: Any) -> str:
         """Generate DFD representation of this element."""
-        self.is_drawn = True
 
         levels = kwargs.get("levels")
         if levels and not levels & self.levels:

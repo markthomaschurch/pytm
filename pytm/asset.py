@@ -169,7 +169,6 @@ class Lambda(Asset):
 
     def dfd(self, **kwargs) -> str:
         """Generate DFD representation of this element."""
-        self.is_drawn = True
 
         levels = kwargs.get("levels", None)
         if levels and not levels & self.levels:

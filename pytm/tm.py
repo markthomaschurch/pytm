@@ -56,6 +56,8 @@ class TMState:
     boundaries: List["Boundary"] = field(default_factory=list)
     data: List["Data"] = field(default_factory=list)
     threats_excluded: List[str] = field(default_factory=list)
+    # dataflows hidden by check() as duplicates (onDuplicates=Action.IGNORE)
+    ignored_duplicates: List["Dataflow"] = field(default_factory=list)
 
 
 class _StateAttribute:
@@ -532,8 +534,12 @@ a brief description of the system being modeled."""
         )
 
     def dfd(self, **kwargs):
-        """Generate Data Flow Diagram."""
-        from collections import defaultdict
+        """Generate Data Flow Diagram.
+
+        Drawing has no side effects on the model, so ``dfd()`` can be called
+        any number of times (for example with different ``levels`` or
+        ``colormap``) and always draws the whole model.
+        """
         from .boundary import Boundary
 
         if "levels" in kwargs:
@@ -542,46 +548,52 @@ a brief description of the system being modeled."""
                 kwargs["levels"] = [levels]
             kwargs["levels"] = set(kwargs["levels"])
 
-        edges = []
-        # Since boundaries can be nested sort them by level and start from top
-        parents = set(b.inBoundary for b in TM._boundaries if b.inBoundary)
+        merge = bool(getattr(self, "mergeResponses", False))
+        kwargs["mergeResponses"] = merge
+        kwargs["skip"] = self._hidden_flows(merge)
 
-        # Collect boundary levels
-        boundary_levels = defaultdict(set)
-        max_level = 0
-        for b in TM._boundaries:
-            if b in parents:
-                continue
-            boundary_levels[0].add(b)
-            for i, p in enumerate(getattr(b, "parents", lambda: [])(), 1):
-                boundary_levels[i].add(p)
-                if i > max_level:
-                    max_level = i
+        # Draw the boundary tree from its roots: each boundary draws its own
+        # members, nested boundaries included, so everything is drawn once.
+        # Roots are ordered by the depth of their nesting (deepest first),
+        # then by name.
+        roots = [b for b in TM._boundaries if b.inBoundary is None]
+        roots.sort(key=lambda b: b.name)
+        roots.sort(key=self._boundary_height, reverse=True)
+        edges = [b.dfd(**kwargs) for b in roots]
 
-        # Draw boundaries from highest level to lowest
-        for i in range(max_level, -1, -1):
-            for b in sorted(boundary_levels[i], key=lambda b: b.name):
-                edges.append(b.dfd(**kwargs))
-
-        # Handle response merging
-        if getattr(self, "mergeResponses", False):
-            for e in TM._flows:
-                if getattr(e, "response", None) is not None:
-                    e.response.is_drawn = True
-        kwargs["mergeResponses"] = getattr(self, "mergeResponses", False)
-
-        # Draw elements that are not boundaries and not inside boundaries
+        # Then everything outside any boundary.
         for e in TM._elements:
             if (
-                not getattr(e, "is_drawn", False)
-                and not isinstance(e, Boundary)
+                not isinstance(e, Boundary)
                 and getattr(e, "inBoundary", None) is None
+                and id(e) not in kwargs["skip"]
             ):
                 edges.append(e.dfd(**kwargs))
 
         return self._dfd_template().format(
             edges=indent("\n".join(filter(len, edges)), "    ").rstrip("\n")
         )
+
+    @staticmethod
+    def _boundary_height(boundary) -> int:
+        """Number of boundary levels nested inside *boundary* (0 if none)."""
+        children = [b for b in TM._boundaries if b.inBoundary is boundary]
+        return max((1 + TM._boundary_height(b) for b in children), default=0)
+
+    def _hidden_flows(self, merge_responses: bool) -> set[int]:
+        """ids of the dataflows not drawn as edges of their own.
+
+        Duplicates ignored by check() (``onDuplicates=Action.IGNORE``), and,
+        with *merge_responses*, responses drawn on their request's edge.
+        """
+        hidden = {id(flow) for flow in TM._get_state().ignored_duplicates}
+        if merge_responses:
+            hidden |= {
+                id(flow.response)
+                for flow in TM._flows
+                if getattr(flow, "response", None) is not None
+            }
+        return hidden
 
     def _seq_template(self):
         """Template for sequence diagram generation."""
@@ -781,6 +793,8 @@ a brief description of the system being modeled."""
 
     def _check_duplicates(self, flows):
         """Ensure duplicate dataflows are handled according to configuration."""
+        ignored = TM._get_state().ignored_duplicates
+        ignored.clear()
         if getattr(self, "onDuplicates", Action.NO_ACTION) == Action.NO_ACTION:
             return
 
@@ -804,7 +818,8 @@ a brief description of the system being modeled."""
                     if left_controls._attr_values() != right_controls._attr_values():
                         continue
                 if self.onDuplicates == Action.IGNORE:
-                    right.is_drawn = True
+                    if all(flow is not right for flow in ignored):
+                        ignored.append(right)
                     continue
                 raise ValueError(
                     "Duplicate Dataflow found between {} and {}: {} is same as {}".format(

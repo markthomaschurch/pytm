@@ -135,7 +135,6 @@ Server class attributes:
                             default: True
   inputs                    incoming Dataflows
                             default factory: list
-  is_drawn                  default: False
   levels                    List of levels (0, 1, 2, ...) to be drawn in the model
                             default factory: <lambda>
   maxClassification         Maximum data classification this element can handle

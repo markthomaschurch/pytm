@@ -179,7 +179,6 @@ class Dataflow(Element):
 
     def dfd(self, mergeResponses: bool = False, **kwargs) -> str:
         """Generate DFD representation of this dataflow."""
-        self.is_drawn = True
 
         levels = kwargs.get("levels", None)
         if (

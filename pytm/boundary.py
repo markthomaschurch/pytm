@@ -43,20 +43,19 @@ class Boundary(Element):
 """
 
     def dfd(self, **kwargs) -> str:
-        """Generate DFD representation of this boundary."""
-        if self.is_drawn:
-            return ""
+        """Generate DFD representation of this boundary and its members.
 
-        self.is_drawn = True
-
+        Members include nested boundaries, which draw their own members.
+        Dataflows whose id is in ``kwargs["skip"]`` are left out.
+        """
+        skip = kwargs.get("skip", ())
         edges = []
         try:
             from .tm import TM
 
             for e in TM._elements:
-                if e.inBoundary != self or e.is_drawn:
+                if e.inBoundary is not self or id(e) in skip:
                     continue
-                # The content to draw can include Boundary objects
                 edges.append(e.dfd(**kwargs))
         except ImportError:
             pass
