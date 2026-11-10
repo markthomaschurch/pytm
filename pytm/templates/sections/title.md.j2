@@ -1,0 +1,32 @@
+# {{ tm.name | md_escape }} { #section-title }
+
+{% if tm.description %}
+{{ tm.description }}
+
+{% endif %}
+{% if tm.assumptions %}
+## Assumptions { #section-assumptions }
+
+{% for a in tm.assumptions %}
+- **{{ a.name | md_escape }}**{% if a.description %}: {{ a.description | md_escape }}{% endif %}{% if a.exclude %} (excludes {{ a.exclude | sort | join(", ") }}){% endif %}
+
+{% endfor %}
+
+{% endif %}
+## Summary { #section-summary }
+
+| | Count |
+|---|---|
+| Actors | {{ actors | length }} |
+| Assets | {{ assets | length }} |
+| Dataflows | {{ dataflows | length }} |
+| Data | {{ data | length }} |
+| Findings | {{ findings | length }} |
+{% for severity in ["Very High", "High", "Medium", "Low", "Very Low", "Info"] %}
+{% set count = findings | selectattr("severity", "equalto", severity) | list | length %}
+{% if count %}
+| &nbsp;&nbsp;{{ severity }} | {{ count }} |
+{% endif %}
+{% endfor %}
+| Threats that fired | {{ fired_threats() | length }} |
+

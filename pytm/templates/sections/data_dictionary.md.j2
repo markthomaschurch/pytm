@@ -1,0 +1,32 @@
+{% import "_macros.md.j2" as m %}
+## Data Dictionary { #section-data-dictionary }
+
+{% for d in data %}
+### {{ d | label | md_escape }} {{ heading_id(d) }}
+
+{% if d.description %}
+{{ d.description }}
+
+{% endif %}
+{{ m.property_table([
+    ("Format", d.format | md_escape),
+    ("Classification", m.value(d.classification)),
+    ("Personally identifiable", m.value(d.isPII)),
+    ("Credentials", m.value(d.isCredentials)),
+    ("Credentials lifetime", m.value(d.credentialsLife) if d.isCredentials else ""),
+    ("Stored", m.value(d.isStored)),
+    ("Encrypted at rest (source)", m.value(d.isSourceEncryptedAtRest)),
+    ("Encrypted at rest (destination)", m.value(d.isDestEncryptedAtRest)),
+]) }}
+
+{{ m.link_list("Handled by", handlers_of(d)) }}
+
+{{ m.link_list("Carried by", carriers_of(d)) }}
+
+**Findings** (against the dataflows that carry it):
+
+{{ m.targeted_finding_list(data_findings_of(d)) }}
+{% else %}
+No data is defined in this model.
+
+{% endfor %}

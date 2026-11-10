@@ -30,11 +30,12 @@ def elsewhere(tmp_path, monkeypatch):
 def test_packaged_templates():
     names = packaged_templates()
 
-    assert {"basic_template.md", "advanced_template.md"} <= set(names)
+    assert {"basic_template.md", "advanced_template.md", "report.md.j2"} <= set(names)
+    assert "_macros.md.j2" not in names  # a partial, not a report
     assert "sections" not in names
 
 
-@pytest.mark.parametrize("name", ["basic_template.md", "advanced_template.md"])
+@pytest.mark.parametrize("name", ["basic_template.md", "report.md.j2"])
 def test_packaged_template_by_name(elsewhere, name):
     assert resolve_template(name) == PACKAGED_DIR / name
 
@@ -80,12 +81,17 @@ def test_not_found_lists_where_it_looked(elsewhere):
 
 
 def test_report_by_name_from_another_directory(elsewhere):
+    pytest.importorskip("jinja2")
     tm = TM("name tm", description="d")
     Server("Web Server")
     tm.check()
     tm.resolve()
 
-    assert "Web Server" in tm.report("basic_template.md")
+    basic = tm.report("basic_template.md")
+    builtin = tm.report("report.md.j2", {"pandoc_metadata": "no"})
+
+    assert "Web Server" in basic
+    assert builtin.startswith("# name tm { #section-title }")
 
 
 def test_cli_list_templates(tmp_path):

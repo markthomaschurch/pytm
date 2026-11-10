@@ -11,7 +11,7 @@ Templates receive the same variables as format-string templates (``tm``,
 Functions
     ``anchor(obj)``, ``label(obj)`` (name, or a stand-in for unnamed objects),
     ``heading_id(obj)``, ``threat_anchor(finding_or_threat)``,
-    ``link(obj, text=None)``, ``thumbnail(obj)``
+    ``link(obj, text=None)``, ``thumbnail(obj)``, ``controls_in_place(obj)``
 
 Cross-references (see :mod:`pytm.relations`)
     ``flows_of(element, direction=None)``, ``data_of(element)``,
@@ -32,7 +32,8 @@ comment syntax ``{# ... #}``; write ``## {{ obj.name }} {{ heading_id(obj) }}``
 (or pandoc's spaced form ``{ #id }``) instead.
 
 ``{% include %}`` and ``{% import %}`` look in the template's own directory,
-then in pytm's built-in templates (``pytm/templates``). Blocks are trimmed (``trim_blocks`` and
+then in pytm's built-in templates (``pytm/templates``); select a built-in
+report with ``pytm:report.md.j2``. Blocks are trimmed (``trim_blocks`` and
 ``lstrip_blocks``), so ``{% ... %}`` lines leave no blank lines behind.
 Undefined variables raise an error instead of rendering as empty text.
 """
@@ -61,6 +62,18 @@ def is_jinja_template(template_path: str | Path) -> bool:
     if text.startswith(PACKAGED_PREFIX):
         text = text[len(PACKAGED_PREFIX) :]
     return Path(text).suffix.lower() in JINJA_SUFFIXES
+
+
+def controls_in_place(obj: Any) -> list[str]:
+    """Names of the boolean controls that are enabled on *obj*."""
+    controls = getattr(obj, "controls", None)
+    if controls is None:
+        return []
+    return [
+        name
+        for name in type(controls).model_fields
+        if getattr(controls, name, None) is True
+    ]
 
 
 def md_escape(text: Any) -> str:
@@ -224,6 +237,7 @@ def _environment(template_dir: Path):
         threat_anchor=threat_anchor,
         link=link,
         thumbnail=thumbnail,
+        controls_in_place=controls_in_place,
     )
     return env
 

@@ -1,0 +1,12 @@
+{% import "_macros.md.j2" as m %}
+## Assets { #section-assets }
+
+{% for a in assets %}
+{{ m.element_section(a, [
+    ("Protocol", a.protocol | md_escape if a.protocol is defined else ""),
+    ("Port", a.port if a.port is defined and a.port not in (none, -1) else ""),
+]) }}
+{% else %}
+No assets are defined in this model.
+
+{% endfor %}

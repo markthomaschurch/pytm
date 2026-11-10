@@ -1,0 +1,30 @@
+{% import "_macros.md.j2" as m %}
+## Threats { #section-threats }
+
+{% if findings %}
+{# Dash counts set the relative column widths when pandoc wraps the table. #}
+| Finding | Threat | Target | Severity |
+|--|---------|------|----|
+{% for f in findings %}
+| [{{ f.id }}](#{{ anchor(f) }}) | [{{ f.threat_id }}](#{{ threat_anchor(f) }}) {{ f.description | replace("\n", " ") }} | {{ link(f.element) }} | {{ f.severity }} |
+{% endfor %}
+
+{% for f in findings %}
+### Finding {{ f.id }}: {{ f.description }} {{ "{#" ~ anchor(f) ~ "}" }}
+
+{{ m.property_table([
+    ("Target", link(f.element)),
+    ("Threat", "[" ~ f.threat_id ~ "](#" ~ threat_anchor(f) ~ ")"),
+    ("Severity", f.severity),
+    ("Likelihood", f.likelihood),
+    ("CVSS", f.cvss),
+    ("Response", f.response),
+]) }}
+
+{{ m.remedy_list(f) }}
+
+{% endfor %}
+{% else %}
+No threats apply to this model.
+
+{% endif %}

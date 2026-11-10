@@ -1,0 +1,44 @@
+{% import "_macros.md.j2" as m %}
+{% set library = fired_threats() %}
+{% if library %}
+## Threat Library { #section-threat-library }
+
+The threats below apply to at least one element of this model.
+
+{% for t in library %}
+### {{ t.id }}: {{ t.description }} {{ "{#" ~ threat_anchor(t) ~ "}" }}
+
+{{ m.property_table([
+    ("Severity", t.severity),
+    ("Likelihood of attack", t.likelihood),
+]) }}
+
+{% for label, text in [("Details", t.details), ("Prerequisites", t.prerequisites | md_escape), ("Mitigations", t.mitigations), ("Example", t.example)] if text %}
+**{{ label }}:** {{ text | breakable }}
+
+{% endfor %}
+{% set references = t.references | split_references %}
+{% if references %}
+**References:**
+
+{% for reference in references %}
+- {{ reference }}
+{% endfor %}
+
+{% endif %}
+{% if t.condition %}
+**Condition:**
+
+```python
+{{ t.condition | format_condition }}
+```
+
+{% endif %}
+
+{% set items = [] %}
+{% for f in findings_for(t) %}{% set _ = items.append("[Finding " ~ f.id ~ "](#" ~ anchor(f) ~ ") on " ~ link(f.element)) %}{% endfor %}
+{{ m.labelled_list("Findings", items) }}
+
+
+{% endfor %}
+{% endif %}

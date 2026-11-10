@@ -750,7 +750,7 @@ def get_args():
         help=(
             "output a report using TEMPLATE: a file (relative to the current "
             "directory), or the name of a template shipped with pytm, e.g. "
-            "basic_template.md (see --list-templates)"
+            "basic_template.md or report.md.j2 (see --list-templates)"
         ),
     )
     parser.add_argument(

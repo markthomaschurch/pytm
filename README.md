@@ -92,8 +92,8 @@ options:
   --dfd                 output DFD
   --report TEMPLATE     output a report using TEMPLATE: a file (relative to
                         the current directory), or the name of a template
-                        shipped with pytm, e.g. basic_template.md (see --list-
-                        templates)
+                        shipped with pytm, e.g. basic_template.md or
+                        report.md.j2 (see --list-templates)
   --list-templates      list the report templates shipped with pytm
   --report-var KEY=VALUE
                         set a report template variable (repeatable), e.g.
@@ -339,7 +339,7 @@ tm.py --report basic_template.md | pandoc -f markdown -t html > report.html
 
 ```
 
-`--report` takes a template file, or the name of a template that ships with pytm: it looks for the file relative to the current directory first, and otherwise uses the packaged template of that name. `--list-templates` shows the packaged ones (`basic_template.md` and `advanced_template.md`). To customize one, copy it next to your model under the same name, and your copy is used instead. `pytm:NAME` always selects the packaged template. Earlier paths such as `docs/basic_template.md` still work.
+`--report` takes a template file, or the name of a template that ships with pytm: it looks for the file relative to the current directory first, and otherwise uses the packaged template of that name. `--list-templates` shows the packaged ones (`basic_template.md`, `advanced_template.md`, and the Jinja2 `report.md.j2`). To customize one, copy it next to your model under the same name, and your copy is used instead. `pytm:NAME` always selects the packaged template. Earlier paths such as `docs/basic_template.md` still work.
 
 The packaged templates link `Stylesheet.css` through a `{stylesheet}` variable. It is found the same way, so a `Stylesheet.css` in the current directory is used instead of the packaged one, and `--report-var stylesheet=PATH` sets it directly. The link is a `file://` URI by default; add `--embed-resources` when converting with pandoc (`pandoc report.md -s --embed-resources -o report.html`) to put the styles inside the HTML file.
 
@@ -410,6 +410,24 @@ The example above uses two nested loops, so items in the inner loop must be esca
 Literal braces inside a loop are doubled like any other, so the pandoc heading attribute `{#...}` is written `{{{{#...}}}}` in the loop above.
 
 `getThreatAnchor` returns the anchor of the threat behind a finding, for linking a finding to its threat's details.
+
+#### Built-in report
+
+pytm ships a complete, cross-linked report template (it needs Jinja2: `pip install 'pytm[jinja]'`). Select it with `pytm:report.md.j2`:
+
+```bash
+./tm.py --dfd | dot -Tpng -o report/dfd.png
+./tm.py --seq | java -Djava.awt.headless=true -jar $PLANTUML_PATH -tpng -pipe > report/seq.png
+./tm.py --thumbnails report/thumbnails --thumbnail-prefix thumbnails \
+        --report pytm:report.md.j2 > report/report.md
+cd report && pandoc report.md -s --embed-resources -o report.html && pandoc report.md -o report.pdf
+```
+
+It contains a summary; the dataflow and sequence diagrams; a data dictionary (each piece of data with the elements that handle it, the dataflows that carry it and the threats against them); sections for actors, dataflows, assets and trust boundaries (details, controls in place, attached dataflows, data, findings and thumbnails); every finding with how to resolve it (the specific values to change, e.g. "set `controls.sanitizesInput` to `True`", with alternatives when there are several ways; alternatives that only add safeguards come first, and changes that merely describe the system differently, such as `isResponse` or `inScope`, are marked); and a threat library limited to the threats that apply to the model, with each condition laid out over short lines and one reference per line. Every element, finding and threat links to the others.
+
+The diagrams default to `dfd.png` and `seq.png` next to the report; change them with `--report-var dfd_image=PATH` and `--report-var seq_image=PATH`, or set one to an empty value to leave it out. The report starts with a small pandoc metadata block that makes links visible in PDF output (`colorlinks`) and sets the HTML page title; leave it out with `--report-var pandoc_metadata=no`. The links use pandoc's heading IDs (`{#...}`), so they work in pandoc's HTML and PDF output but not in Markdown previews (such as GitHub's) that don't support heading attributes.
+
+The report is built from sub-templates (`pytm/templates/sections/*.md.j2`) and shared macros (`pytm/templates/_macros.md.j2`). To customize one part, copy `report.md.j2` next to your model, and add a file with the same name as the section you want to change (for example `sections/threats.md.j2`): templates next to your template are used before the built-in ones.
 
 #### Jinja2 templates
 

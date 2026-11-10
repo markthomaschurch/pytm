@@ -1,0 +1,41 @@
+{#- pytm's built-in threat model report.
+
+    Render with:  ./tm.py --report pytm:report.md.j2 > report.md
+    Variables (set with --report-var KEY=VALUE):
+      dfd_image  path of the dataflow diagram image (default: dfd.png; empty to omit)
+      seq_image  path of the sequence diagram image (default: seq.png; empty to omit)
+      pandoc_metadata
+                 "no" to leave out the pandoc metadata block at the top, which
+                 makes links visible in PDF output (colorlinks), sets 0.75in
+                 PDF margins (LaTeX's default is about 1.9in), sets PDF text
+                 ragged-right and lets long URLs wrap (xurl, if installed) so
+                 lines stay inside the margins, widens HTML pages, and
+                 sets the HTML page title (default: yes)
+
+    Each section is a separate template under sections/, and the shared
+    pieces are macros in _macros.md.j2. To change one part, put a file with
+    the same name next to your own copy of this template.
+-#}
+{% if (pandoc_metadata | default("yes") | string | lower) not in ("no", "false", "0", "") %}
+---
+pagetitle: {{ tm.name | tojson }}
+colorlinks: true
+geometry: margin=0.75in
+maxwidth: 52em
+header-includes:
+  - '`\IfFileExists{xurl.sty}{\usepackage{xurl}}{}`{=latex}'
+  - '`\raggedright`{=latex}'
+---
+
+{% endif %}
+{% set dfd_image = dfd_image | default("dfd.png") %}
+{% set seq_image = seq_image | default("seq.png") %}
+{% include "sections/title.md.j2" %}
+{% include "sections/diagrams.md.j2" %}
+{% include "sections/data_dictionary.md.j2" %}
+{% include "sections/actors.md.j2" %}
+{% include "sections/dataflows.md.j2" %}
+{% include "sections/assets.md.j2" %}
+{% include "sections/boundaries.md.j2" %}
+{% include "sections/threats.md.j2" %}
+{% include "sections/threat_library.md.j2" %}
