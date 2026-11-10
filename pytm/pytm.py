@@ -750,6 +750,16 @@ def get_args():
             "output report using the named template file (sample template file is under docs/basic_template.md)"
         ),
     )
+    parser.add_argument(
+        "--report-var",
+        dest="report_var",
+        action="append",
+        metavar="KEY=VALUE",
+        help=(
+            "set a report template variable (repeatable), e.g. "
+            "--report-var dfd_image=dfd.png"
+        ),
+    )
     parser.add_argument("--exclude", help="specify threat IDs to be ignored")
     parser.add_argument("--seq", action="store_true", help="output sequential diagram")
     parser.add_argument(

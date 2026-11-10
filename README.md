@@ -79,11 +79,12 @@ lower overhead and more convenient alternative to the OCI container approach.
 All available arguments:
 
 ```text
-usage: tm.py [-h] [--debug] [--dfd] [--report REPORT] [--exclude EXCLUDE]
-             [--seq] [--list] [--colormap] [--describe DESCRIBE]
-             [--list-elements] [--json JSON] [--thumbnails DIR]
-             [--thumbnail-format {png,svg}] [--thumbnail-prefix PREFIX]
-             [--levels LEVELS [LEVELS ...]] [--stale_days STALE_DAYS]
+usage: tm.py [-h] [--debug] [--dfd] [--report REPORT] [--report-var KEY=VALUE]
+             [--exclude EXCLUDE] [--seq] [--list] [--colormap]
+             [--describe DESCRIBE] [--list-elements] [--json JSON]
+             [--thumbnails DIR] [--thumbnail-format {png,svg}]
+             [--thumbnail-prefix PREFIX] [--levels LEVELS [LEVELS ...]]
+             [--stale_days STALE_DAYS]
 
 options:
   -h, --help            show this help message and exit
@@ -91,6 +92,9 @@ options:
   --dfd                 output DFD
   --report REPORT       output report using the named template file (sample
                         template file is under docs/basic_template.md)
+  --report-var KEY=VALUE
+                        set a report template variable (repeatable), e.g.
+                        --report-var dfd_image=dfd.png
   --exclude EXCLUDE     specify threat IDs to be ignored
   --seq                 output sequential diagram
   --list                list all available threats

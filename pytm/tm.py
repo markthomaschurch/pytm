@@ -472,7 +472,16 @@ a brief description of the system being modeled."""
                 )
 
         if getattr(result, "report", None):
-            print(self.report(result.report))
+            variables = {}
+            for item in getattr(result, "report_var", None) or []:
+                key, sep, value = item.partition("=")
+                if not sep or not key.strip():
+                    raise UIError(
+                        ValueError(f"expected KEY=VALUE, got {item!r}"),
+                        "while reading --report-var",
+                    )
+                variables[key.strip()] = value
+            print(self.report(result.report, variables))
 
         describe_targets = getattr(result, "describe", None)
         if describe_targets:
@@ -671,9 +680,18 @@ a brief description of the system being modeled."""
             participants="\n".join(participants), messages="\n".join(messages)
         )
 
-    def report(self, template_path):
-        """Generate report from template."""
+    def report(self, template_path, variables=None):
+        """Generate report from template.
 
+        Templates receive the model's data plus any extra *variables*
+        (e.g. ``{"dfd_image": "dfd.png"}``).
+        """
+        context = self._report_context()
+        context.update(variables or {})
+        return self._report_superformatter(template_path, context)
+
+    def _report_superformatter(self, template_path, context):
+        """Render a built-in format-string template."""
         try:
             with open(template_path, encoding="utf-8") as file:
                 template = file.read()
@@ -683,6 +701,14 @@ a brief description of the system being modeled."""
             raise UIError(
                 e, f"while trying to open the report template file ({template_path})."
             )
+
+        if not hasattr(self, "_sf") or self._sf is None:
+            self._sf = SuperFormatter()
+
+        return self._sf.format(template, **context)
+
+    def _report_context(self):
+        """Return the data passed to report templates."""
 
         def _clone(obj):
             copy_method = getattr(obj, "model_copy", None)
@@ -807,10 +833,7 @@ a brief description of the system being modeled."""
             "data": TM._data,
         }
 
-        if not hasattr(self, "_sf") or self._sf is None:
-            self._sf = SuperFormatter()
-
-        return self._sf.format(template, **data)
+        return data
 
     def _check_duplicates(self, flows):
         """Ensure duplicate dataflows are handled according to configuration."""
