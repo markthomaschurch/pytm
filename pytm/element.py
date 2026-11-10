@@ -20,12 +20,18 @@ if TYPE_CHECKING:
 
 
 def sev_to_color(sev: int) -> str:
-    """Return a Graphviz color declaration based on severity."""
+    """Return a Graphviz color declaration based on severity.
+
+    Very High (5) is red, High (4) orange, Medium (3) gold, and Low, Very
+    Low and Info (2 to 0) green.
+    """
     if sev == 5:
         return 'firebrick3; fillcolor="#b2222222"; style=filled '
-    if 2 <= sev <= 4:
+    if sev == 4:
+        return 'darkorange2; fillcolor="#ee760022"; style=filled'
+    if sev == 3:
         return 'gold; fillcolor="#ffd80022"; style=filled'
-    if 0 <= sev < 2:
+    if 0 <= sev <= 2:
         return 'darkgreen; fillcolor="#00630022"; style=filled'
     return "black"
 

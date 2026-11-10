@@ -1994,3 +1994,21 @@ class TestFinding:
         server = next(e for e in TM._elements if e.name == "Web Server")
         assert len(server.findings) == 1
         assert server.findings[0].likelihood == ""
+
+
+@pytest.mark.parametrize(
+    "severity, colour",
+    [
+        (5, "firebrick3"),
+        (4, "darkorange2"),
+        (3, "gold"),
+        (2, "darkgreen"),
+        (1, "darkgreen"),
+        (0, "darkgreen"),
+        (-1, "black"),
+    ],
+)
+def test_colormap_colour_per_severity(severity, colour):
+    from pytm.element import sev_to_color
+
+    assert sev_to_color(severity).split(";")[0].strip() == colour
