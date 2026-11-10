@@ -731,7 +731,8 @@ class TestTM:
         Dataflow(worker, db, "Query for tasks")
 
         assert tm.check()
-        output = tm.report("docs/basic_template.md")
+        # A fixed stylesheet link; by default it is a machine-specific file URI.
+        output = tm.report("basic_template.md", {"stylesheet": "Stylesheet.css"})
 
         with open(os.path.join(output_path, "output_current.md"), "w") as x:
             x.write(output)

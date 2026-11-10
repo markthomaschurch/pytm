@@ -37,8 +37,8 @@ $(MODEL)/dfd.png: $(MODEL).py $(libs)
 $(MODEL)/seq.png: $(MODEL).py $(libs)
 	poetry run python $< --seq | java -Djava.awt.headless=true -jar $$PLANTUML_PATH -tpng -pipe > $@
 
-$(MODEL)/report.html: $(MODEL).py $(libs) docs/basic_template.md docs/Stylesheet.css
-	poetry run python $< --report docs/basic_template.md | pandoc -f markdown-tex_math_dollars -t html > $@
+$(MODEL)/report.html: $(MODEL).py $(libs) pytm/templates/basic_template.md pytm/templates/Stylesheet.css
+	poetry run python $< --report basic_template.md | pandoc -f markdown-tex_math_dollars -t html > $@
 
 dfd: $(MODEL)/dfd.png
 

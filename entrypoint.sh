@@ -29,7 +29,7 @@ run_seq() {
 
 run_report() {
     echo "Generating report..."
-    python "${WORK_DIR}/${MODEL}.py" --report /app/docs/basic_template.md \
+    python "${WORK_DIR}/${MODEL}.py" --report basic_template.md \
         | pandoc -f markdown-tex_math_dollars -t html \
         > "${OUTPUT_DIR}/report.html"
 }

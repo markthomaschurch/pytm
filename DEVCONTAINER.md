@@ -27,6 +27,6 @@ The first startup takes some time for building the image. Later startups are sig
 The most simple, getting started usage scenario is:
 
     vscode ➜ /workspaces/pytm (devcontainer) $ mkdir -p tm
-    vscode ➜ /workspaces/pytm (devcontainer) $ ./tm.py --report docs/basic_template.md | pandoc -f markdown -t html > tm/report.html
+    vscode ➜ /workspaces/pytm (devcontainer) $ ./tm.py --report basic_template.md | pandoc -f markdown -t html > tm/report.html
     vscode ➜ /workspaces/pytm (devcontainer) $ ./tm.py --dfd | dot -Tpng -o tm/dfd.png
     vscode ➜ /workspaces/pytm (devcontainer) $ ./tm.py --seq | java -Djava.awt.headless=true -jar $PLANTUML_PATH -tpng -pipe > tm/seq.png

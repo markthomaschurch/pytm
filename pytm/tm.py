@@ -491,6 +491,12 @@ a brief description of the system being modeled."""
         if getattr(result, "list_elements", False):
             pytm_module._list_elements()
 
+        if getattr(result, "list_templates", False):
+            from .report_templates import packaged_templates
+
+            for name in packaged_templates():
+                print(name)
+
         if getattr(result, "list", False):
             for threat in TM._threats:
                 print(
@@ -685,10 +691,29 @@ a brief description of the system being modeled."""
 
         Templates receive the model's data plus any extra *variables*
         (e.g. ``{"dfd_image": "dfd.png"}``).
+
+        *template_path* is looked up as a file first (relative to the current
+        directory), then among the templates shipped with pytm, so
+        ``basic_template.md`` works from anywhere; ``pytm:<name>`` always
+        uses the shipped one (see :mod:`pytm.report_templates`).
         """
+        from .report_templates import TemplateNotFound, resolve_template
+
+        try:
+            template_file = resolve_template(template_path)
+        except TemplateNotFound as exc:
+            raise UIError(
+                exc, f"while looking for the report template ({template_path})."
+            )
+
+        from .report_templates import stylesheet_uri
+
         context = self._report_context()
+        # Templates link the stylesheet as {stylesheet}; found like a template
+        # (current directory first, then pytm's), overridable as a variable.
+        context["stylesheet"] = stylesheet_uri()
         context.update(variables or {})
-        return self._report_superformatter(template_path, context)
+        return self._report_superformatter(template_file, context)
 
     def _report_superformatter(self, template_path, context):
         """Render a built-in format-string template."""

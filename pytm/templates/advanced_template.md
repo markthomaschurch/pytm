@@ -1,4 +1,4 @@
-<link href="docs/Stylesheet.css" rel="stylesheet"></link>
+<link href="{stylesheet}" rel="stylesheet"></link>
 
 ## System Description
 

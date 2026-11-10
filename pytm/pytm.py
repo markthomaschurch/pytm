@@ -746,9 +746,18 @@ def get_args():
     parser.add_argument("--dfd", action="store_true", help="output DFD")
     parser.add_argument(
         "--report",
+        metavar="TEMPLATE",
         help=(
-            "output report using the named template file (sample template file is under docs/basic_template.md)"
+            "output a report using TEMPLATE: a file (relative to the current "
+            "directory), or the name of a template shipped with pytm, e.g. "
+            "basic_template.md (see --list-templates)"
         ),
+    )
+    parser.add_argument(
+        "--list-templates",
+        dest="list_templates",
+        action="store_true",
+        help="list the report templates shipped with pytm",
     )
     parser.add_argument(
         "--report-var",

@@ -30,7 +30,7 @@ The `tm.py` is an example model. You can run it to generate the report and diagr
 
 ```
 mkdir -p tm
-./tm.py --report docs/basic_template.md | pandoc -f markdown -t html > tm/report.html
+./tm.py --report basic_template.md | pandoc -f markdown -t html > tm/report.html
 ./tm.py --dfd | dot -Tpng -o tm/dfd.png
 ./tm.py --seq | java -Djava.awt.headless=true -jar $PLANTUML_PATH -tpng -pipe > tm/seq.png
 ```
@@ -79,10 +79,10 @@ lower overhead and more convenient alternative to the OCI container approach.
 All available arguments:
 
 ```text
-usage: tm.py [-h] [--debug] [--dfd] [--report REPORT] [--report-var KEY=VALUE]
-             [--exclude EXCLUDE] [--seq] [--list] [--colormap]
-             [--describe DESCRIBE] [--list-elements] [--json JSON]
-             [--thumbnails DIR] [--thumbnail-format {png,svg}]
+usage: tm.py [-h] [--debug] [--dfd] [--report TEMPLATE] [--list-templates]
+             [--report-var KEY=VALUE] [--exclude EXCLUDE] [--seq] [--list]
+             [--colormap] [--describe DESCRIBE] [--list-elements]
+             [--json JSON] [--thumbnails DIR] [--thumbnail-format {png,svg}]
              [--thumbnail-prefix PREFIX] [--levels LEVELS [LEVELS ...]]
              [--stale_days STALE_DAYS]
 
@@ -90,8 +90,11 @@ options:
   -h, --help            show this help message and exit
   --debug               print debug messages
   --dfd                 output DFD
-  --report REPORT       output report using the named template file (sample
-                        template file is under docs/basic_template.md)
+  --report TEMPLATE     output a report using TEMPLATE: a file (relative to
+                        the current directory), or the name of a template
+                        shipped with pytm, e.g. basic_template.md (see --list-
+                        templates)
+  --list-templates      list the report templates shipped with pytm
   --report-var KEY=VALUE
                         set a report template variable (repeatable), e.g.
                         --report-var dfd_image=dfd.png
@@ -332,9 +335,14 @@ The diagrams and findings can be included in the template to create a final repo
 
 ```bash
 
-tm.py --report docs/basic_template.md | pandoc -f markdown -t html > report.html
+tm.py --report basic_template.md | pandoc -f markdown -t html > report.html
 
 ```
+
+`--report` takes a template file, or the name of a template that ships with pytm: it looks for the file relative to the current directory first, and otherwise uses the packaged template of that name. `--list-templates` shows the packaged ones (`basic_template.md` and `advanced_template.md`). To customize one, copy it next to your model under the same name, and your copy is used instead. `pytm:NAME` always selects the packaged template. Earlier paths such as `docs/basic_template.md` still work.
+
+The packaged templates link `Stylesheet.css` through a `{stylesheet}` variable. It is found the same way, so a `Stylesheet.css` in the current directory is used instead of the packaged one, and `--report-var stylesheet=PATH` sets it directly. The link is a `file://` URI by default; add `--embed-resources` when converting with pandoc (`pandoc report.md -s --embed-resources -o report.html`) to put the styles inside the HTML file.
+
 The templating format used in the report template is very simple:
 
 ```text
@@ -411,7 +419,7 @@ In a template, `getThumbnailMarkdown` returns a Markdown image of an element's t
 
 ```bash
 ./tm.py --thumbnails report/thumbnails --thumbnail-prefix thumbnails \
-        --report docs/basic_template.md > report/report.md
+        --report basic_template.md > report/report.md
 ```
 
 ```text
