@@ -17,7 +17,8 @@ Cross-references (see :mod:`pytm.relations`)
     ``flows_of(element, direction=None)``, ``data_of(element)``,
     ``handlers_of(data)``, ``carriers_of(data)``, ``data_findings_of(data)``,
     ``members_of(boundary)``, ``findings_of(element)``,
-    ``threats_of(element)``, ``fired_threats()``, ``findings_for(threat)``
+    ``threats_of(element)``, ``fired_threats()``, ``findings_for(threat)``,
+    ``remedies_of(finding)``
 
 Filters
     ``slugify``, ``md_escape``, ``anchor``, ``label``, and every
@@ -115,6 +116,7 @@ def _relation_functions() -> dict[str, Any]:
         "threats_of": lambda element: current().threats(element),
         "fired_threats": lambda: current().fired_threats(),
         "findings_for": lambda threat: current().findings_for(threat),
+        "remedies_of": lambda finding: current().remedies(finding),
     }
 
 

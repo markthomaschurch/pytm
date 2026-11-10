@@ -445,6 +445,21 @@ These helpers link the parts of a model together. In format-string templates cal
 | `getElementFindings`, `getElementThreats` (`findings_of(el)`, `threats_of(el)`) | findings against an element, and the distinct threats behind them |
 | `getFiredThreats` (`fired_threats()`) | every threat with at least one finding, for a threat library |
 | `getThreatFindings` (`findings_for(threat)`) | the findings a threat produced |
+| `getFindingRemedies` (`remedies_of(finding)`) | how to resolve a finding: alternative sets of changes, each with `attribute`, `required`, `current`, `subject` and a readable `instruction`; making every change in any one set makes the threat stop applying |
+
+For example, how to resolve each finding:
+
+```jinja
+{% for finding in findings %}
+
+### {{ finding.threat_id }} on {{ finding.target }}
+
+{% for changes in remedies_of(finding) %}
+{{ loop.index }}. {% for c in changes %}{{ c.instruction }}{{ " and " if not loop.last }}{% endfor %}
+
+{% endfor %}
+{% endfor %}
+```
 
 #### Element thumbnails
 

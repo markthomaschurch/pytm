@@ -4,10 +4,11 @@ import pytest
 from pydantic import BaseModel
 
 import pytm
-from pytm import TM, Dataflow, Server
+from pytm import TM, Actor, Data, Dataflow, Server
 from pytm.base import Controls
 from pytm.data import Data as DataModel
 from pytm.element import Element
+from pytm.relations import Change, remedies
 from pytm.roles import Role, field_role
 
 
@@ -66,3 +67,30 @@ def test_unknown_and_extra_attributes():
     assert field_role(server, "notAnAttribute") is None
     assert field_role(server.controls, "checksCustomThing") is Role.SAFEGUARD
     assert field_role(Controls, "checksCustomThing") is None
+
+
+def test_remedies_take_roles_from_the_declaring_class():
+    tm = TM("roles tm", description="test")
+    flow = Dataflow(Actor("User"), Server("Web"), "Login", data=Data("Token"))
+    tm.check()
+    threat = pytm.Threat(
+        SID="X1",
+        target="Dataflow",
+        description="x",
+        condition="target.controls.isEncrypted is False and not target.isResponse"
+        " and target.source.inScope",
+    )
+
+    options = remedies(threat, flow)
+
+    assert [[(c.attribute, c.role) for c in option] for option in options] == [
+        [("controls.isEncrypted", Role.SAFEGUARD)],
+        [("isResponse", Role.DESCRIPTIVE)],
+        [("source.inScope", Role.DESCRIPTIVE)],
+    ]
+    # Safeguard-only alternatives are listed first.
+    assert [o[0].is_mitigation for o in options] == [True, False, False]
+
+
+def test_change_without_role_is_not_a_mitigation():
+    assert Change("hasDataLeaks()", "False", "True").is_mitigation is False

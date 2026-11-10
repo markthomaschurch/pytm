@@ -269,3 +269,18 @@ class ReportUtils:
         from pytm.relations import current
 
         return current().findings_for(obj)
+
+    @staticmethod
+    def getFindingRemedies(obj: Any) -> list:
+        """How to resolve a finding: alternative sets of value changes.
+
+        Each item is a list of changes (``attribute``, ``required``,
+        ``current``, ``subject`` and a Markdown ``instruction``); making all
+        the changes in any one item makes the threat stop applying.
+        """
+        from pytm import Finding
+        from pytm.relations import current
+
+        if not isinstance(obj, Finding):
+            return []
+        return current().remedies(obj)

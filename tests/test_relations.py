@@ -2,8 +2,18 @@ import random
 
 import pytest
 
-from pytm import TM, Actor, Boundary, Data, Dataflow, Datastore, Server, Threat
-from pytm.relations import Relations, current
+from pytm import (
+    TM,
+    Actor,
+    Boundary,
+    Classification,
+    Data,
+    Dataflow,
+    Datastore,
+    Server,
+    Threat,
+)
+from pytm.relations import Change, Relations, current, remedies
 from pytm.report_util import ReportUtils
 
 
@@ -191,3 +201,235 @@ class TestReportIntegration:
 
         assert _names(current().flows(m["db"])) == ["Store", "Fetch"]
         assert _names(ReportUtils.getDataCarriers(m["profile"])) == ["Login", "Store"]
+        assert ReportUtils.getFindingRemedies("not a finding") == []
+
+
+class TestRemedies:
+    def _threat(self, condition, target="Server"):
+        return Threat(SID="X1", target=target, description="x", condition=condition)
+
+    def _fixes(self, condition, element):
+        return [
+            [(c.subject, c.attribute, c.required, c.current) for c in option]
+            for option in remedies(self._threat(condition), element)
+        ]
+
+    def test_flag_is_false(self):
+        web = Server("Web")
+
+        assert self._fixes("target.controls.sanitizesInput is False", web) == [
+            [("target", "controls.sanitizesInput", "True", "False")]
+        ]
+
+    def test_and_gives_alternatives_or_needs_all(self):
+        web = Server("Web")
+
+        assert self._fixes(
+            "target.controls.sanitizesInput is False and "
+            "target.controls.validatesInput is False",
+            web,
+        ) == [
+            [("target", "controls.sanitizesInput", "True", "False")],
+            [("target", "controls.validatesInput", "True", "False")],
+        ]
+        assert self._fixes(
+            "target.controls.sanitizesInput is False or "
+            "target.controls.validatesInput is False",
+            web,
+        ) == [
+            [
+                ("target", "controls.sanitizesInput", "True", "False"),
+                ("target", "controls.validatesInput", "True", "False"),
+            ]
+        ]
+
+    def test_only_true_parts_of_an_or_need_fixing(self):
+        web = Server("Web")
+        web.controls.validatesInput = True
+
+        assert self._fixes(
+            "target.controls.sanitizesInput is False or "
+            "target.controls.validatesInput is False",
+            web,
+        ) == [[("target", "controls.sanitizesInput", "True", "False")]]
+
+    def test_not_and_truthiness(self):
+        web = Server("Web", usesVPN=True)
+
+        assert self._fixes("not target.controls.isEncrypted", web) == [
+            [("target", "controls.isEncrypted", "True", "False")]
+        ]
+        assert self._fixes("target.usesVPN", web) == [
+            [("target", "usesVPN", "False", "True")]
+        ]
+
+    @pytest.mark.parametrize(
+        "condition, required",
+        [
+            ("target.protocol == 'HTTP'", "not 'HTTP'"),
+            ("'HTTP' == target.protocol", "not 'HTTP'"),
+            ("target.protocol != 'HTTPS'", "'HTTPS'"),
+            ("target.protocol in ('HTTP', 'FTP')", "not one of ['HTTP', 'FTP']"),
+            ("target.minTLSVersion < TLSVersion.TLSv12", ">= TLSVersion.TLSv12"),
+            ("TLSVersion.TLSv12 > target.minTLSVersion", ">= TLSVersion.TLSv12"),
+        ],
+    )
+    def test_comparisons(self, condition, required):
+        flow = Dataflow(Actor("User"), Server("Web"), "Login", protocol="HTTP")
+
+        [[(_, attribute, found, _)]] = [
+            [(c.subject, c.attribute, c.required, c.current) for c in o]
+            for o in remedies(self._threat(condition, "Dataflow"), flow)
+        ]
+
+        assert found == required
+        assert attribute in ("protocol", "minTLSVersion")
+
+    def test_any_over_data_names_each_item(self):
+        tm = TM("remedy tm", description="test")
+        secret = Data("Secret", isPII=True)
+        other = Data("Other", isPII=True)
+        flow = Dataflow(Actor("User"), Server("Web"), "Login", data=[secret, other])
+        tm.check()
+
+        [option] = remedies(
+            self._threat("any(d.isPII for d in target.data)", "Dataflow"), flow
+        )
+
+        assert [
+            (c.subject, c.attribute, c.required, c.subject_anchor) for c in option
+        ] == [
+            ('data "Other"', "isPII", "False", "data-other"),
+            ('data "Secret"', "isPII", "False", "data-secret"),
+        ]
+
+    def test_has_data_leaks_names_classifications(self):
+        tm = TM("leak tm", description="test")
+        token = Data("Token", classification=Classification.SECRET)
+        user = Actor("User", maxClassification=Classification.SECRET)
+        web = Server("Web", maxClassification=Classification.RESTRICTED)
+        flow = Dataflow(
+            user, web, "Login", data=token, maxClassification=Classification.SECRET
+        )
+        tm.check()
+
+        options = self._fixes("target.hasDataLeaks()", flow)
+
+        assert options == [
+            [
+                (
+                    'data "Token"',
+                    "classification",
+                    "<= Classification.RESTRICTED",
+                    "Classification.SECRET",
+                )
+            ],
+            [
+                (
+                    "target",
+                    "sink.maxClassification",
+                    ">= Classification.SECRET",
+                    "Classification.RESTRICTED",
+                )
+            ],
+        ]
+
+    def test_constant_condition_has_no_remedy(self):
+        assert remedies(self._threat("True"), Server("Web")) == []
+        assert remedies(self._threat(""), Server("Web")) == []
+
+    @pytest.mark.parametrize(
+        "attribute, required, expected",
+        [
+            ("controls.isHardened", "True", "set `controls.isHardened` to `True`"),
+            (
+                "protocol",
+                "not 'HTTP'",
+                "set `protocol` to something other than `'HTTP'`",
+            ),
+            (
+                "minTLSVersion",
+                ">= TLSVersion.TLSv12",
+                "set `minTLSVersion` to `TLSVersion.TLSv12` or higher",
+            ),
+            (
+                "classification",
+                "<= Classification.PUBLIC",
+                "set `classification` to `Classification.PUBLIC` or lower",
+            ),
+            ("port", "one of (80, 443)", "set `port` to one of `(80, 443)`"),
+            (
+                "port",
+                "not one of (80, 443)",
+                "set `port` to a value other than `(80, 443)`",
+            ),
+            (
+                "description",
+                "a false or empty value",
+                "set `description` to a false or empty value",
+            ),
+            ("hasDataLeaks()", "False", "make `hasDataLeaks()` return `False`"),
+        ],
+    )
+    def test_instruction(self, attribute, required, expected):
+        assert Change(attribute, required, "x").instruction == expected
+
+
+def test_every_remedy_resolves_its_finding():
+    """Apply each suggested change and check the threat no longer applies."""
+    import ast
+
+    import pytm
+
+    tm = TM("verify tm", description="test")
+    internet = Boundary("Internet")
+    user = Actor("User", inBoundary=internet)
+    web = Server("Web", OS="Linux", usesSessionTokens=True)
+    db = Datastore("DB", isSQL=True)
+    token = Data("Token", classification=Classification.SECRET, isCredentials=True)
+    comment = Data("Comment", isPII=True, format="JSON")
+    login = Dataflow(user, web, "Login", data=[token, comment], protocol="HTTP")
+    Dataflow(web, db, "Store", data=comment)
+    Dataflow(web, user, "Reply", responseTo=login)
+    tm.check()
+    tm.resolve()
+    threats = {t.id: t for t in TM._threats}
+    checked = 0
+
+    def value(required):
+        if required.startswith(("not ", "< ", "> ", "a ", "one of")):
+            return None
+        text = required[3:] if required[:3] in ("<= ", ">= ") else required
+        try:
+            return ast.literal_eval(text)
+        except (ValueError, SyntaxError):
+            return eval(text, vars(pytm))  # noqa: S307 - enum names only
+
+    for finding in tm.findings:
+        for option in Relations().remedies(finding):
+            values = [value(c.required) for c in option]
+            if None in values or any(c.attribute.endswith(")") for c in option):
+                continue
+            target, saved = finding.element, []
+            try:
+                for change, new in zip(option, values):
+                    owners = [target]
+                    if change.subject != "target":
+                        name = change.subject.split('"')[1]
+                        owners = [d for d in target.data if d.name == name]
+                    *path, attr = change.attribute.split(".")
+                    for owner in owners:
+                        for part in path:
+                            owner = getattr(owner, part)
+                        saved.append((owner, attr, getattr(owner, attr)))
+                        object.__setattr__(owner, attr, new)
+                assert not threats[finding.threat_id].apply(target), (
+                    finding.threat_id,
+                    option,
+                )
+                checked += 1
+            finally:
+                for owner, attr, old in reversed(saved):
+                    object.__setattr__(owner, attr, old)
+
+    assert checked > 50
