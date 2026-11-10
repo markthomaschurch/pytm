@@ -13,7 +13,7 @@ from pytm import (
     Server,
     Threat,
 )
-from pytm.relations import Change, Relations, current, remedies
+from pytm.relations import Change, Relations, current, format_condition, remedies
 from pytm.report_util import ReportUtils
 
 
@@ -433,3 +433,76 @@ def test_every_remedy_resolves_its_finding():
                     object.__setattr__(owner, attr, old)
 
     assert checked > 50
+
+
+class TestFormatCondition:
+    def test_boolean_operators_start_lines_and_groups_are_indented(self):
+        condition = (
+            "target.controls.isEncrypted is False or (target.source.inScope and "
+            "not target.isResponse and (not target.controls.authenticatesDestination"
+            " or not target.controls.checksDestinationRevocation))"
+        )
+
+        assert format_condition(condition) == (
+            "target.controls.isEncrypted is False\n"
+            "or (\n"
+            "    target.source.inScope\n"
+            "    and not target.isResponse\n"
+            "    and (\n"
+            "        not target.controls.authenticatesDestination\n"
+            "        or not target.controls.checksDestinationRevocation\n"
+            "    )\n"
+            ")"
+        )
+
+    def test_not_of_a_group_and_short_generators(self):
+        assert format_condition("not (target.a or target.b)") == (
+            "not (\n    target.a\n    or target.b\n)"
+        )
+        assert format_condition("any(d.isPII for d in target.data)") == (
+            "any(d.isPII for d in target.data)"
+        )
+
+    def test_long_calls_and_sequences_break_inside_brackets(self):
+        condition = (
+            "any(d.credentialsLife in (Lifetime.UNKNOWN, Lifetime.LONG, "
+            "Lifetime.MANUAL, Lifetime.HARDCODED) for d in target.data)"
+        )
+
+        assert format_condition(condition) == (
+            "any(\n"
+            "    d.credentialsLife in (\n"
+            "        Lifetime.UNKNOWN,\n"
+            "        Lifetime.LONG,\n"
+            "        Lifetime.MANUAL,\n"
+            "        Lifetime.HARDCODED,\n"
+            "    )\n"
+            "    for d in target.data\n"
+            ")"
+        )
+
+    def test_invalid_text_is_returned_unchanged(self):
+        assert format_condition("not a (valid expression") == (
+            "not a (valid expression"
+        )
+
+    def test_library_conditions_keep_their_meaning_and_fit(self):
+        import ast
+        import json
+        from pathlib import Path
+
+        import pytm
+
+        library = Path(pytm.__file__).parent / "threatlib" / "threats.json"
+        conditions = [
+            t["condition"]
+            for t in json.loads(library.read_text(encoding="utf-8"))
+            if t.get("condition")
+        ]
+        assert len(conditions) > 100
+        for condition in conditions:
+            formatted = format_condition(condition)
+            # Wrapped in parentheses the layout is valid Python again.
+            again = ast.parse("(\n" + formatted + "\n)", mode="eval")
+            assert ast.dump(again) == ast.dump(ast.parse(condition, mode="eval"))
+            assert max(map(len, formatted.splitlines())) <= 60, condition

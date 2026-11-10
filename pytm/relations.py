@@ -579,6 +579,124 @@ def _resolves(threat: Any, target: Any, option: frozenset) -> bool | None:
             object.__setattr__(owner, attr, value)
 
 
+_INDENT = "    "
+_FORMAT_WIDTH = 60
+
+
+def format_condition(condition: str, width: int = _FORMAT_WIDTH) -> str:
+    """Lay out a threat condition over several short lines.
+
+    Each boolean operator starts a new line, and the contents of
+    parenthesized groups (and long calls such as ``any(...)``) are indented,
+    so conditions fit narrow pages instead of running off them::
+
+        target.controls.isEncrypted is False
+        or (
+            target.source.inScope
+            and not target.isResponse
+        )
+
+    The result means exactly the same as *condition*; text that is not a
+    valid expression is returned unchanged.
+    """
+    try:
+        tree = ast.parse(condition.strip(), mode="eval")
+    except SyntaxError:
+        return condition
+    return "\n".join(_condition_lines(tree.body, width))
+
+
+def _indented(lines: list[str]) -> list[str]:
+    return [_INDENT + line for line in lines]
+
+
+def _operand_lines(node: ast.AST, width: int) -> list[str]:
+    if isinstance(node, ast.BoolOp):
+        return ["(", *_indented(_condition_lines(node, width)), ")"]
+    return _condition_lines(node, width)
+
+
+def _condition_lines(node: ast.AST, width: int) -> list[str]:
+    if isinstance(node, ast.BoolOp):
+        operator = "and" if isinstance(node.op, ast.And) else "or"
+        lines: list[str] = []
+        for index, value in enumerate(node.values):
+            part = _operand_lines(value, width)
+            lines.append(part[0] if index == 0 else f"{operator} {part[0]}")
+            lines.extend(part[1:])
+        return lines
+
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        if isinstance(node.operand, ast.BoolOp):
+            inner = _condition_lines(node.operand, width)
+            return ["not (", *_indented(inner), ")"]
+        inner = _condition_lines(node.operand, width)
+        return [f"not {inner[0]}", *inner[1:]]
+
+    has_boolean = any(isinstance(n, ast.BoolOp) for n in ast.walk(node))
+
+    if (
+        isinstance(node, ast.Call)
+        and not node.keywords
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.GeneratorExp)
+    ):
+        # any(x for x in y): written without the doubled parentheses
+        # ast.unparse() produces, and broken up when long or boolean.
+        function = ast.unparse(node.func)
+        body = _generator_lines(node.args[0], width)
+        if not has_boolean and len(function) + 2 + len(" ".join(body)) <= width:
+            return [f"{function}({' '.join(body)})"]
+        return [f"{function}(", *_indented(body), ")"]
+
+    text = ast.unparse(node)
+    if len(text) <= width and not has_boolean:
+        return [text]
+
+    if (
+        isinstance(node, ast.Compare)
+        and len(node.ops) == 1
+        and isinstance(node.comparators[0], (ast.Tuple, ast.List, ast.Set))
+    ):
+        # x in (A, B, C, ...): one item per line.
+        sequence = node.comparators[0]
+        opening, closing = {ast.Tuple: "()", ast.List: "[]", ast.Set: "{}"}[
+            type(sequence)
+        ]
+        operator = ast.unparse(
+            ast.Compare(left=ast.Name("x"), ops=node.ops, comparators=[ast.Name("y")])
+        )[2:-2]
+        items = [f"{ast.unparse(e)}," for e in sequence.elts]
+        return [
+            f"{ast.unparse(node.left)} {operator} {opening}",
+            *_indented(items),
+            closing,
+        ]
+
+    if isinstance(node, ast.Call) and not node.keywords:
+        body = []
+        for index, arg in enumerate(node.args):
+            part = _condition_lines(arg, width)
+            if index < len(node.args) - 1:
+                part[-1] += ","
+            body.extend(part)
+        return [f"{ast.unparse(node.func)}(", *_indented(body), ")"]
+
+    if isinstance(node, ast.GeneratorExp):
+        return ["(", *_indented(_generator_lines(node, width)), ")"]
+
+    return [text]
+
+
+def _generator_lines(node: ast.GeneratorExp, width: int) -> list[str]:
+    lines = _condition_lines(node.elt, width)
+    for generator in node.generators:
+        clause = f"for {ast.unparse(generator.target)} in {ast.unparse(generator.iter)}"
+        lines.append(("async " if generator.is_async else "") + clause)
+        lines.extend(f"if {ast.unparse(condition)}" for condition in generator.ifs)
+    return lines
+
+
 class Relations:
     """Index of the model's relationships, optionally for one report."""
 

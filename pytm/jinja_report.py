@@ -21,7 +21,9 @@ Cross-references (see :mod:`pytm.relations`)
     ``remedies_of(finding)``
 
 Filters
-    ``slugify``, ``md_escape``, ``anchor``, ``label``, and every
+    ``slugify``, ``md_escape``, ``anchor``, ``label``, ``format_condition``
+    (lay a condition out over short lines), ``split_references``,
+    ``breakable`` (let PDF output wrap long unbroken tokens), and every
     :class:`pytm.report_util.ReportUtils` method, e.g.
     ``{{ asset | getFindingCount }}``
 
@@ -37,6 +39,7 @@ Undefined variables raise an error instead of rendering as empty text.
 
 from __future__ import annotations
 
+import html
 import re
 from pathlib import Path
 from typing import Any
@@ -63,6 +66,57 @@ def is_jinja_template(template_path: str | Path) -> bool:
 def md_escape(text: Any) -> str:
     """Backslash-escape Markdown special characters in *text*."""
     return _MD_SPECIAL.sub(r"\\\1", "" if text is None else str(text))
+
+
+_URL = re.compile(r"^(https?|ftp)://\S+$")
+
+_LONG_TOKEN = re.compile(r"\S{31,}")
+# A line-break opportunity for LaTeX/PDF output only; other formats drop it.
+_LATEX_BREAK = "`\\allowbreak{}`{=latex}"
+_BREAK_AFTER = set("/?&=;,.+-_)]")
+
+
+def breakable(text: Any, every: int = 20) -> str:
+    """Let PDF output wrap very long unbroken tokens in *text*.
+
+    Threat examples contain base64 payloads, URLs and scripts that LaTeX
+    cannot break, so they run off the page. Tokens longer than 30
+    characters get LaTeX-only break points after punctuation such as ``/``
+    or ``=``, or every *every* characters. HTML entities (``&amp;``) are kept
+    whole, and HTML output is unchanged (browsers wrap long words already).
+    """
+
+    def split(match: re.Match) -> str:
+        token, out, run, i = match.group(0), [], 0, 0
+        while i < len(token):
+            end = token.find(";", i) if token[i] == "&" else -1
+            if 0 < end - i <= 8:  # an HTML entity such as &amp; or &#x27;
+                piece, i = token[i : end + 1], end + 1
+            else:
+                piece, i = token[i], i + 1
+            out.append(piece)
+            run += 1
+            if i < len(token) and (piece[-1] in _BREAK_AFTER or run >= every):
+                out.append(_LATEX_BREAK)
+                run = 0
+        return "".join(out)
+
+    return _LONG_TOKEN.sub(split, "" if text is None else str(text))
+
+
+def split_references(text: Any) -> list[str]:
+    """Split a threat's comma-separated references into Markdown items.
+
+    URLs become autolinks (``<https://...>``), which wrap at slashes in PDF
+    output; anything else (e.g. ``CVE-1999-0906``) is escaped text. Accepts
+    pytm's HTML-escaped report text.
+    """
+    items = []
+    for part in html.unescape("" if text is None else str(text)).split(","):
+        part = part.strip()
+        if part:
+            items.append(f"<{part}>" if _URL.match(part) else md_escape(part))
+    return items
 
 
 def heading_id(obj: Any) -> str:
@@ -129,6 +183,7 @@ def _environment(template_dir: Path):
         ) from exc
 
     from .anchors import anchor, label, slugify
+    from .relations import format_condition
     from .report_util import ReportUtils
 
     # The template's own directory comes first, so a report can override
@@ -157,6 +212,9 @@ def _environment(template_dir: Path):
         md_escape=md_escape,
         anchor=anchor,
         label=label,
+        format_condition=lambda text: format_condition(html.unescape(str(text))),
+        split_references=split_references,
+        breakable=breakable,
     )
     env.globals.update(_relation_functions())
     env.globals.update(

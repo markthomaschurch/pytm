@@ -209,3 +209,30 @@ def test_cli_renders_jinja_template(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "[Web Server](#server-web-server)"
+
+
+class TestLayoutHelpers:
+    def test_split_references(self):
+        from pytm.jinja_report import split_references
+
+        assert split_references(
+            "https://capec.mitre.org/data/definitions/1.html, CVE-1999-0906,"
+            " http://a.example/?x=1&amp;y=2"
+        ) == [
+            "<https://capec.mitre.org/data/definitions/1.html>",
+            "CVE-1999-0906",
+            "<http://a.example/?x=1&y=2>",
+        ]
+        assert split_references("") == []
+
+    def test_breakable_only_touches_long_tokens(self):
+        from pytm.jinja_report import breakable
+
+        brk = "`\\allowbreak{}`{=latex}"
+        assert breakable("short words stay as they are") == (
+            "short words stay as they are"
+        )
+        assert breakable("a" * 45) == "a" * 20 + brk + "a" * 20 + brk + "a" * 5
+        result = breakable("x=1&amp;y=2&amp;zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")
+        assert "&amp;" in result and "&" + brk not in result
+        assert result.replace(brk, "") == "x=1&amp;y=2&amp;" + "z" * 30
