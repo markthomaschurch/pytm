@@ -125,3 +125,28 @@ class ReportUtils:
         if isinstance(obj, Finding):
             return obj.example
         return ""
+
+    @staticmethod
+    def getAnchor(obj: Any) -> str:
+        """Return the link anchor for an element, data, threat or finding.
+
+        Use it for heading IDs and links, e.g. ``#{{item:call:getAnchor}}``.
+        """
+        from pytm.anchors import anchor
+
+        try:
+            return anchor(obj)
+        except TypeError:
+            return f"ERROR: getAnchor method is not valid for {type(obj).__name__}"
+
+    @staticmethod
+    def getThreatAnchor(obj: Any) -> str:
+        """Return the anchor of the threat behind a finding (or of a threat)."""
+        from pytm import Finding, Threat
+        from pytm.anchors import anchor_for_threat_id
+
+        if isinstance(obj, Finding):
+            return anchor_for_threat_id(obj.threat_id)
+        if isinstance(obj, Threat):
+            return anchor_for_threat_id(obj.id)
+        return f"ERROR: getThreatAnchor method is not valid for {type(obj).__name__}"

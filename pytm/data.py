@@ -1,7 +1,7 @@
 """Data model - represents data that traverses the threat model."""
 
-from typing import List, TYPE_CHECKING
-from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional, TYPE_CHECKING
+from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
 from .enums import Classification, Lifetime
 
@@ -29,6 +29,8 @@ class Data(BaseModel):
     """
 
     model_config = ConfigDict(extra="allow", validate_assignment=True)
+    # Link anchor, reserved when the data is created (see pytm.anchors).
+    _anchor: Optional[str] = PrivateAttr(default=None)
 
     name: str = Field(description="Name of the data")
     description: str = Field(default="", description="Description of the data")
@@ -94,14 +96,32 @@ class Data(BaseModel):
         self._register_with_tm()
 
     def _register_with_tm(self):
-        """Register this data with the TM class."""
+        """Register this data with the TM class and reserve its anchor."""
         try:
+            from .anchors import register_anchor
             from .tm import TM
 
             TM._data.append(self)
+            self._anchor = register_anchor(self._anchor_base())
         except ImportError:
             # TM might not be available yet during initial setup
             pass
+
+    def _anchor_base(self) -> str:
+        """Anchor before de-duplication: ``data-<name>``."""
+        from .anchors import slugify
+
+        return f"data-{slugify(self.name)}"
+
+    @property
+    def anchor(self) -> str:
+        """Unique link anchor in the model, e.g. ``data-token``."""
+        return self._anchor or self._anchor_base()
+
+    def display_label(self) -> str:
+        """Name to show in reports, with a stand-in for unnamed data."""
+        name = str(self.name or "").strip()
+        return name or "(unnamed Data)"
 
     def __repr__(self):
         return (

@@ -374,6 +374,22 @@ To group findings by elements, use a more advanced, nested loop:
 All items inside a loop must be escaped, doubling the braces, so `{item.name}` becomes `{{item.name}}`.
 The example above uses two nested loops, so items in the inner loop must be escaped twice, that's why they're using four braces.
 
+#### Linking between sections
+
+`getAnchor` returns a stable, unique identifier for an element, dataflow, boundary, piece of data, threat or finding, such as `server-web-server`, `dataflow-login` or `threat-inp01`. Elements with the same type and name are numbered in the order they were created (`server-web-server-2`). Use it for pandoc heading IDs and links:
+
+```text
+{assets:repeat:### {{item.name}} {{{{#{{item:call:getAnchor}}}}}}
+
+}
+{dataflows:repeat:* [{{item.name}}](#{{item:call:getAnchor}}) from [{{item.source.name}}](#{{item.source:call:getAnchor}})
+}
+```
+
+Literal braces inside a loop are doubled like any other, so the pandoc heading attribute `{#...}` is written `{{{{#...}}}}` in the loop above.
+
+`getThreatAnchor` returns the anchor of the threat behind a finding, for linking a finding to its threat's details.
+
 ### Overrides
 
 You can override attributes of findings (threats matching the model assets and/or dataflows), for example to set a custom CVSS score and/or response text:

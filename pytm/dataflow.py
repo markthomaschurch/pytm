@@ -161,6 +161,22 @@ class Dataflow(Element):
         except ImportError:
             pass
 
+    def _anchor_base(self) -> str:
+        """Unnamed dataflows are named after their ends: ``<source>-to-<sink>``."""
+        from .anchors import slugify, type_prefix
+
+        name = slugify(self.name, fallback="") or slugify(
+            f"{self.source.name} to {self.sink.name}"
+        )
+        return f"{type_prefix(self)}-{name}"
+
+    def display_label(self) -> str:
+        """Name to show in reports; unnamed dataflows show ``<source> to <sink>``."""
+        name = str(self.name or "").strip()
+        if name:
+            return name
+        return f"{self.source.display_label()} to {self.sink.display_label()}"
+
     def display_name(self) -> str:
         """Get display name for this dataflow."""
         if self.order == -1:

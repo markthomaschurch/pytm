@@ -285,6 +285,13 @@ class Threat(BaseModel):
         except (ValueError, TypeError):
             pass
 
+    @property
+    def anchor(self) -> str:
+        """Link anchor of this threat, e.g. ``threat-inp01``."""
+        from .anchors import anchor_for_threat_id
+
+        return anchor_for_threat_id(self.id)
+
     def __repr__(self):
         return (
             f"<{self.__module__}.{type(self).__name__}({self.id}) at {hex(id(self))}>"

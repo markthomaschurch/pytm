@@ -8,7 +8,7 @@ from html import escape as html_escape
 from textwrap import wrap
 from typing import Any, List, Optional, Set, TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
 from .base import Assumption, Controls
 from .enums import Classification, TLSVersion
@@ -114,6 +114,8 @@ class Element(BaseModel):
     uuid: uuid_module.UUID = Field(
         default_factory=lambda: uuid_module.UUID(int=random.getrandbits(128))
     )
+    # Link anchor, reserved when the element is created (see pytm.anchors).
+    _anchor: Optional[str] = PrivateAttr(default=None)
 
     _WRITE_ONCE_FIELDS = {"name"}
 
@@ -165,14 +167,32 @@ class Element(BaseModel):
         self._register_with_tm()
 
     def _register_with_tm(self) -> None:
-        """Register this element with the TM class."""
+        """Register this element with the TM class and reserve its anchor."""
         try:
+            from .anchors import register_anchor
             from .tm import TM
 
             TM._elements.append(self)
+            self._anchor = register_anchor(self._anchor_base())
         except ImportError:
             # TM might not be available yet during initial setup
             pass
+
+    def _anchor_base(self) -> str:
+        """Anchor before de-duplication: ``<type>-<name>``."""
+        from .anchors import slugify, type_prefix
+
+        return f"{type_prefix(self)}-{slugify(self.name)}"
+
+    @property
+    def anchor(self) -> str:
+        """Unique link anchor in the model, e.g. ``server-web-server``."""
+        return self._anchor or self._anchor_base()
+
+    def display_label(self) -> str:
+        """Name to show in reports, with a stand-in for unnamed elements."""
+        name = str(self.name or "").strip()
+        return name or f"(unnamed {type(self).__name__})"
 
     def __repr__(self) -> str:
         return (

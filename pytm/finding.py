@@ -160,6 +160,13 @@ class Finding(BaseModel):
         except (ValueError, TypeError):
             pass
 
+    @property
+    def anchor(self) -> str:
+        """Link anchor of this finding, e.g. ``finding-7``."""
+        from .anchors import slugify
+
+        return f"finding-{slugify(self.id)}"
+
     def __repr__(self):
         return (
             f"<{self.__module__}.{type(self).__name__}({self.id}) at {hex(id(self))}>"

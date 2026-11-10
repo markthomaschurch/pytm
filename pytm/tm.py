@@ -56,6 +56,8 @@ class TMState:
     boundaries: List["Boundary"] = field(default_factory=list)
     data: List["Data"] = field(default_factory=list)
     threats_excluded: List[str] = field(default_factory=list)
+    # link anchors already given to elements and data (see pytm.anchors)
+    anchors: set[str] = field(default_factory=set)
     # dataflows hidden by check() as duplicates (onDuplicates=Action.IGNORE)
     ignored_duplicates: List["Dataflow"] = field(default_factory=list)
 
