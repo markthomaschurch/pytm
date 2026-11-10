@@ -93,7 +93,8 @@ options:
   --exclude EXCLUDE     specify threat IDs to be ignored
   --seq                 output sequential diagram
   --list                list all available threats
-  --colormap            color the risk in the diagram
+  --colormap            color the DFD by the highest threat severity of each
+                        element
   --describe DESCRIBE   describe the properties available for a given element
   --list-elements       list all elements which can be part of a threat model
   --json JSON           output a JSON file
@@ -172,7 +173,7 @@ Server class attributes:
 
 ```
 
-The *colormap* argument, used together with *dfd*, outputs a color-coded DFD where the elements are painted red, yellow or green depending on their risk level (as identified by running the rules).
+The *colormap* argument, used together with *dfd*, outputs a color-coded DFD where each element and dataflow is colored by the highest severity of the threats found against it: red for Very High, orange for High, gold for Medium, and green for Low, Very Low or Info. Elements no threat applies to are drawn in grey without a fill. The colors show threat severity only; they don't take likelihood into account, so they are not a risk rating. Boundaries are drawn in black so they don't compete with the colors.
 
 
 ## Usage - Devbox Variant

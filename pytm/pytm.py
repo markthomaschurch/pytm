@@ -755,7 +755,9 @@ def get_args():
         "--list", action="store_true", help="list all available threats"
     )
     parser.add_argument(
-        "--colormap", action="store_true", help="color the risk in the diagram"
+        "--colormap",
+        action="store_true",
+        help="color the DFD by the highest threat severity of each element",
     )
     parser.add_argument(
         "--describe", help="describe the properties available for a given element"
