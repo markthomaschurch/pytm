@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import combinations
 from textwrap import indent
-from typing import ClassVar, Dict, Iterable, List, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, Iterable, List, TYPE_CHECKING
 from html import escape as html_escape
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -62,6 +62,8 @@ class TMState:
     ignored_duplicates: List["Dataflow"] = field(default_factory=list)
     # anchor -> link to the element's thumbnail, filled by render_thumbnails()
     thumbnails: dict[str, str] = field(default_factory=dict)
+    # relations of the report being rendered (see pytm.relations.current())
+    report_relations: Any = None
 
 
 class _StateAttribute:
@@ -701,6 +703,7 @@ a brief description of the system being modeled."""
         :mod:`pytm.report_templates`).
         """
         from .jinja_report import is_jinja_template, render_jinja
+        from .relations import Relations
         from .report_templates import TemplateNotFound, resolve_template
 
         try:
@@ -717,9 +720,14 @@ a brief description of the system being modeled."""
         # (current directory first, then pytm's), overridable as a variable.
         context["stylesheet"] = stylesheet_uri()
         context.update(variables or {})
-        if is_jinja_template(template_file):
-            return render_jinja(template_file, context)
-        return self._report_superformatter(template_file, context)
+        state = TM._get_state()
+        state.report_relations = Relations(context)
+        try:
+            if is_jinja_template(template_file):
+                return render_jinja(template_file, context)
+            return self._report_superformatter(template_file, context)
+        finally:
+            state.report_relations = None
 
     def _report_superformatter(self, template_path, context):
         """Render a built-in format-string template."""

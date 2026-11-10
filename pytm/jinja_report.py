@@ -13,6 +13,12 @@ Functions
     ``heading_id(obj)``, ``threat_anchor(finding_or_threat)``,
     ``link(obj, text=None)``, ``thumbnail(obj)``
 
+Cross-references (see :mod:`pytm.relations`)
+    ``flows_of(element, direction=None)``, ``data_of(element)``,
+    ``handlers_of(data)``, ``carriers_of(data)``, ``data_findings_of(data)``,
+    ``members_of(boundary)``, ``findings_of(element)``,
+    ``threats_of(element)``, ``fired_threats()``, ``findings_for(threat)``
+
 Filters
     ``slugify``, ``md_escape``, ``anchor``, ``label``, and every
     :class:`pytm.report_util.ReportUtils` method, e.g.
@@ -94,6 +100,24 @@ def thumbnail(obj: Any) -> str:
     return ReportUtils.getThumbnail(obj)
 
 
+def _relation_functions() -> dict[str, Any]:
+    """Template functions that look up the report's cross-references."""
+    from .relations import current
+
+    return {
+        "flows_of": lambda element, direction=None: current().flows(element, direction),
+        "data_of": lambda element: current().data(element),
+        "handlers_of": lambda datum: current().handlers(datum),
+        "carriers_of": lambda datum: current().carriers(datum),
+        "data_findings_of": lambda datum: current().data_findings(datum),
+        "members_of": lambda boundary: current().members(boundary),
+        "findings_of": lambda element: current().findings(element),
+        "threats_of": lambda element: current().threats(element),
+        "fired_threats": lambda: current().fired_threats(),
+        "findings_for": lambda threat: current().findings_for(threat),
+    }
+
+
 def _environment(template_dir: Path):
     try:
         import jinja2
@@ -132,6 +156,7 @@ def _environment(template_dir: Path):
         anchor=anchor,
         label=label,
     )
+    env.globals.update(_relation_functions())
     env.globals.update(
         anchor=anchor,
         label=label,

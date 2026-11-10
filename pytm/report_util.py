@@ -180,3 +180,92 @@ class ReportUtils:
         if any(char.isspace() for char in link):
             link = f"<{link}>"
         return f"![{name}]({link})"
+
+    # -- cross-references (see pytm.relations) ------------------------------
+
+    @staticmethod
+    def getFlows(obj: Any) -> list:
+        """Dataflows attached to an element (as source or sink)."""
+        from pytm.relations import current
+
+        return current().flows(obj)
+
+    @staticmethod
+    def getInboundFlows(obj: Any) -> list:
+        """Dataflows into an element."""
+        from pytm.relations import current
+
+        return current().flows(obj, "in")
+
+    @staticmethod
+    def getOutboundFlows(obj: Any) -> list:
+        """Dataflows out of an element."""
+        from pytm.relations import current
+
+        return current().flows(obj, "out")
+
+    @staticmethod
+    def getData(obj: Any) -> list:
+        """Data an element produces or consumes, or a dataflow carries."""
+        from pytm.relations import current
+
+        return current().data(obj)
+
+    @staticmethod
+    def getDataHandlers(obj: Any) -> list:
+        """Elements that send, receive, store or process a piece of data."""
+        from pytm.relations import current
+
+        return current().handlers(obj)
+
+    @staticmethod
+    def getDataCarriers(obj: Any) -> list:
+        """Dataflows that carry a piece of data."""
+        from pytm.relations import current
+
+        return current().carriers(obj)
+
+    @staticmethod
+    def getDataFindings(obj: Any) -> list:
+        """Findings against the dataflows carrying data."""
+        from pytm.relations import current
+
+        return current().data_findings(obj)
+
+    @staticmethod
+    def getBoundaryMembers(obj: Any) -> list:
+        """Elements and boundaries directly inside a boundary."""
+        from pytm.relations import current
+
+        return current().members(obj)
+
+    @staticmethod
+    def getElementFindings(obj: Any) -> list:
+        """Findings against an element."""
+        from pytm.relations import current
+
+        return current().findings(obj)
+
+    @staticmethod
+    def getElementThreats(obj: Any) -> list:
+        """Distinct threats that fired against an element."""
+        from pytm.relations import current
+
+        return current().threats(obj)
+
+    @staticmethod
+    def getFiredThreats(obj: Any = None) -> list:
+        """Distinct threats with at least one finding (argument ignored).
+
+        Use it as ``{tm:call:getFiredThreats:...}`` for a threat library.
+        """
+        from pytm.relations import current
+
+        return current().fired_threats()
+
+    @staticmethod
+    def getThreatFindings(obj: Any) -> list:
+        """Findings produced by a threat."""
+        from pytm.relations import current
+
+        return current().findings_for(obj)

@@ -430,6 +430,22 @@ Findings: {{ asset | getFindingCount }}
 
 Pandoc's heading ID syntax `{#...}` starts a comment in Jinja2, so use `heading_id(obj)` (or pandoc's spaced form `{ #... }`). `{% include %}` finds templates next to the main template, and using an undefined variable is an error rather than empty output.
 
+#### Cross-references
+
+These helpers link the parts of a model together. In format-string templates call them with `:call:` (for example `{{item:call:getFlows:...}}`); in Jinja2 templates use the function names in brackets.
+
+| Helper | Returns |
+|---|---|
+| `getFlows`, `getInboundFlows`, `getOutboundFlows` (`flows_of(el, direction=None)`) | dataflows attached to an element |
+| `getData` (`data_of(el)`) | data an element produces or consumes, or a dataflow carries |
+| `getDataHandlers` (`handlers_of(data)`) | elements that send, receive, store or process the data |
+| `getDataCarriers` (`carriers_of(data)`) | dataflows that carry the data |
+| `getDataFindings` (`data_findings_of(data)`) | findings against the dataflows that carry the data |
+| `getBoundaryMembers` (`members_of(boundary)`) | elements and boundaries directly inside a boundary |
+| `getElementFindings`, `getElementThreats` (`findings_of(el)`, `threats_of(el)`) | findings against an element, and the distinct threats behind them |
+| `getFiredThreats` (`fired_threats()`) | every threat with at least one finding, for a threat library |
+| `getThreatFindings` (`findings_for(threat)`) | the findings a threat produced |
+
 #### Element thumbnails
 
 `--thumbnails DIR` writes a small image for every element, dataflow, boundary and piece of data: the DFD with that object highlighted in blue, cropped to it and the elements directly connected to it. Unrelated elements inside the crop are faded. Files are named after the object's anchor (`DIR/server-web-server.png`). Thumbnails follow `--colormap` and `--levels`, and need Graphviz's `dot`; PNG (the default) also needs `rsvg-convert` (`librsvg2-bin` on Debian/Ubuntu). Use `--thumbnail-format svg` for SVG.
