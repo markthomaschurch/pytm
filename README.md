@@ -411,6 +411,25 @@ Literal braces inside a loop are doubled like any other, so the pandoc heading a
 
 `getThreatAnchor` returns the anchor of the threat behind a finding, for linking a finding to its threat's details.
 
+#### Jinja2 templates
+
+Templates whose name ends in `.j2` or `.jinja` (for example `report.md.j2`) are rendered with [Jinja2](https://jinja.palletsprojects.com/) instead. Install it with `pip install 'pytm[jinja]'`. Jinja2 templates get the same variables (`tm`, `elements`, `assets`, `actors`, `boundaries`, `dataflows`, `data`, `threats`, `findings`) plus:
+
+- functions: `anchor(obj)`, `heading_id(obj)`, `link(obj, text=None)`, `threat_anchor(finding)`, `thumbnail(obj)`
+- filters: `md_escape`, `slugify`, `anchor`, and every helper above, e.g. `{{ asset | getFindingCount }}`
+
+```jinja
+{% for asset in assets %}
+## {{ asset.name | md_escape }} {{ heading_id(asset) }}
+
+{% if thumbnail(asset) %}![{{ asset.name | md_escape }}]({{ thumbnail(asset) }}){% endif %}
+
+Findings: {{ asset | getFindingCount }}
+{% endfor %}
+```
+
+Pandoc's heading ID syntax `{#...}` starts a comment in Jinja2, so use `heading_id(obj)` (or pandoc's spaced form `{ #... }`). `{% include %}` finds templates next to the main template, and using an undefined variable is an error rather than empty output.
+
 #### Element thumbnails
 
 `--thumbnails DIR` writes a small image for every element, dataflow, boundary and piece of data: the DFD with that object highlighted in blue, cropped to it and the elements directly connected to it. Unrelated elements inside the crop are faded. Files are named after the object's anchor (`DIR/server-web-server.png`). Thumbnails follow `--colormap` and `--levels`, and need Graphviz's `dot`; PNG (the default) also needs `rsvg-convert` (`librsvg2-bin` on Debian/Ubuntu). Use `--thumbnail-format svg` for SVG.

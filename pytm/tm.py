@@ -689,14 +689,18 @@ a brief description of the system being modeled."""
     def report(self, template_path, variables=None):
         """Generate report from template.
 
-        Templates receive the model's data plus any extra *variables*
-        (e.g. ``{"dfd_image": "dfd.png"}``).
+        Templates ending in ``.j2`` or ``.jinja`` (e.g. ``report.md.j2``) are
+        rendered with Jinja2 (``pip install pytm[jinja]``); all others use
+        pytm's built-in format-string templates. Both receive the same data,
+        plus any extra *variables* (e.g. ``{"dfd_image": "dfd.png"}``).
 
         *template_path* is looked up as a file first (relative to the current
         directory), then among the templates shipped with pytm, so
-        ``basic_template.md`` works from anywhere; ``pytm:<name>`` always
-        uses the shipped one (see :mod:`pytm.report_templates`).
+        ``basic_template.md`` or ``report.md.j2`` work from anywhere;
+        ``pytm:<name>`` always uses the shipped one (see
+        :mod:`pytm.report_templates`).
         """
+        from .jinja_report import is_jinja_template, render_jinja
         from .report_templates import TemplateNotFound, resolve_template
 
         try:
@@ -713,6 +717,8 @@ a brief description of the system being modeled."""
         # (current directory first, then pytm's), overridable as a variable.
         context["stylesheet"] = stylesheet_uri()
         context.update(variables or {})
+        if is_jinja_template(template_file):
+            return render_jinja(template_file, context)
         return self._report_superformatter(template_file, context)
 
     def _report_superformatter(self, template_path, context):
@@ -733,7 +739,7 @@ a brief description of the system being modeled."""
         return self._sf.format(template, **context)
 
     def _report_context(self):
-        """Return the data passed to report templates."""
+        """Return the data passed to report templates (by both engines)."""
 
         def _clone(obj):
             copy_method = getattr(obj, "model_copy", None)
