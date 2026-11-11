@@ -43,16 +43,65 @@ make MODEL=the_name_of_your_model_minus_.py
 
 You should either have plantuml.jar on the same directory as your model, or set PLANTUML_PATH.
 
-To avoid installing all the dependencies, like `pandoc` or `Java`, the script can be run inside a container:
+### Getting Started - Docker Variant
 
-```
-# do this only once
-export USE_DOCKER=true
-make image
+To avoid installing the dependencies (Graphviz, Java and PlantUML, pandoc,
+LaTeX), build the Docker image once and run it in the directory of your
+models. It builds every `*_tm.py` there (or `tm.py` if there are none),
+each into a directory of its own:
 
-# call this after every change in your model
-make
+```bash
+# do this once, in a pytm checkout
+make image                       # or: docker build -t pytm .
+
+# then, in your project, after every change to a model
+docker run --rm -v "$PWD":/work pytm
 ```
+
+For `payments_tm.py` this writes `payments_tm/`:
+
+| File | Contents |
+|---|---|
+| `dfd.png` | dataflow diagram, coloured by the severity of each element's findings |
+| `seq.png` | sequence diagram |
+| `report.md` | the built-in report (`pytm:report.md.j2`) |
+| `report.html` | the report as a single, self-contained HTML file |
+| `report.pdf` | the report as a PDF |
+| `thumbnails/report/` | the element thumbnails and legend images the report uses |
+
+Files are only rebuilt when their model changes, and they are owned by the
+owner of your project directory, not root. Arguments select what to build
+and how:
+
+```bash
+docker run --rm -v "$PWD":/work pytm help              # targets and options
+docker run --rm -v "$PWD":/work pytm dfd seq            # only the diagrams
+docker run --rm -v "$PWD":/work pytm payments_tm.py     # only this model
+docker run --rm -v "$PWD":/work pytm OUT=build FORMATS="md html"
+docker run --rm -v "$PWD":/work pytm clean
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `MODELS=a_tm.py b_tm.py` | `*_tm.py`, or `tm.py` | models to build (model files given as arguments are the same) |
+| `OUT=dir` | `.` | write each model to `dir/<model>/` |
+| `FORMATS=...` | `md html pdf` | report formats |
+| `REPORTS=...` | `pytm:report.md.j2` | report templates (files in your project, or `pytm:<name>`), each written to `<model>/<name>.md`, `.html` and `.pdf` with its thumbnails in `thumbnails/<name>/`: `REPORTS="pytm:report.md.j2 pytm:actions.md.j2"` gives `report.*` and `actions.*` |
+| `COLORMAP=no` | `yes` | don't colour the diagram by severity |
+| `THEME=dir` | none | style the HTML and PDF with the pandoc defaults files `dir/html.yaml` and `dir/pdf.yaml` |
+| `PDF_ENGINE=...` | the theme's, or `pdflatex` | e.g. `lualatex` |
+| `PANDOC_OPTS=...` | none | extra pandoc options, e.g. `--toc` |
+
+A theme outside your project has to be mounted too. Mount it at the same
+path as on your computer, so that the paths inside its defaults files
+work:
+
+```bash
+docker run --rm -v "$PWD":/work -v "$THEME:$THEME:ro" pytm THEME="$THEME"
+```
+
+The image's Makefile (`docker/Makefile`) also works without Docker, if the
+same tools are installed: `make -f path/to/pytm/docker/Makefile`.
 
 ### Getting Started - Devbox Variant
 
