@@ -103,6 +103,10 @@ docker run --rm -v "$PWD":/work -v "$THEME:$THEME:ro" pytm THEME="$THEME"
 The image's Makefile (`docker/Makefile`) also works without Docker, if the
 same tools are installed: `make -f path/to/pytm/docker/Makefile`.
 
+After changing the image, `docker/test-image.sh pytm` checks that it still
+builds the example model's diagrams and reports, with and without a
+LuaLaTeX theme; CI runs the same test.
+
 ### Getting Started - Devbox Variant
 
 To simplify the usage of `pytm` host dependencies can be completely isolated
