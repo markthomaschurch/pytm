@@ -301,6 +301,27 @@ tm.process()
 
 You also have the option of using [pytmGPT](https://chat.openai.com/g/g-soISG24ix-pytmgpt) to create your models from prose!
 
+### Assumptions
+
+An `Assumption` records a claim about the system, for the whole model (`tm.assumptions`) or one element (`element.assumptions`). One that lists threat SIDs in `exclude` suppresses those threats: their findings are moved to `tm.excluded_findings` instead of `tm.findings`.
+
+Assumptions often need someone to confirm them. Record who is responsible with `verifier`, and once it is confirmed, `verified=True` and `verifiedOn` (an ISO date):
+
+```python
+web.assumptions = [
+    Assumption(
+        "No PHP on the web server",
+        exclude=["INP16"],
+        verifier="Platform team",
+        verified=True,
+        verifiedOn="2026-11-01",
+    ),
+    Assumption("Patched weekly", exclude=["SC02"], verifier="Ana Smith"),
+]
+```
+
+By default every assumption suppresses the threats it excludes. With `tm.requireVerifiedAssumptions = True`, only verified ones do: the findings of an unverified assumption stay findings until it is verified.
+
 ### Generating Diagrams
 
 Diagrams are output as [Dot](https://graphviz.gitlab.io/) and [PlantUML](https://plantuml.com/).

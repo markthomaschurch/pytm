@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, Any, Iterable, List, Set, Union, TYPE_CHECKING
+from datetime import date
+from typing import ClassVar, Any, Iterable, List, Optional, Set, Union, TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .roles import Role
 
@@ -190,10 +191,19 @@ class Controls(BaseModel):
 class Assumption(BaseModel):
     """Assumption used by an Element. Used to exclude threats on a per-element basis.
 
+    An assumption is a claim about the system that someone has to confirm.
+    ``verifier`` names who is responsible for confirming it (and, once
+    ``verified``, who did); ``verifiedOn`` records when. With
+    ``TM.requireVerifiedAssumptions``, only verified assumptions exclude
+    threats.
+
     Attributes:
         name (str): Name of the assumption
         exclude (Set[str]): A set of threat SIDs to exclude for this assumption. For example: INP01
         description (str): An additional description of the assumption
+        verified (bool): Whether the assumption has been confirmed
+        verifier (str): Who is responsible for confirming it, or who confirmed it
+        verifiedOn (date): When it was confirmed (an ISO date such as "2026-11-11")
     """
 
     model_config = ConfigDict(extra="allow")
@@ -206,6 +216,31 @@ class Assumption(BaseModel):
     description: str = Field(
         default="", description="An additional description of the assumption"
     )
+    verified: bool = Field(
+        default=False, description="Whether the assumption has been confirmed"
+    )
+    verifier: str = Field(
+        default="",
+        description="Who is responsible for confirming the assumption, or who confirmed it",
+    )
+    verifiedOn: Optional[date] = Field(
+        default=None, description="When the assumption was confirmed"
+    )
+
+    @model_validator(mode="after")
+    def _verified_on_needs_verified(self):
+        if self.verifiedOn is not None and not self.verified:
+            raise ValueError(
+                f"assumption {self.name!r} has verifiedOn but is not verified"
+            )
+        return self
+
+    def excludes(self, threat_id: str, require_verified: bool = False) -> bool:
+        """Does this assumption exclude the threat *threat_id*?
+
+        With *require_verified*, only if the assumption has been verified.
+        """
+        return threat_id in self.exclude and (self.verified or not require_verified)
 
     def __init__(
         self, name: str = None, exclude: Union[List[str], Set[str]] = None, **kwargs
@@ -217,6 +252,9 @@ class Assumption(BaseModel):
             exclude (Set[str]): A set of threat SIDs to exclude for this assumption. For example: INP01
             **kwargs: Optional properties:
                 - description (str): An additional description of the assumption
+                - verified (bool): Whether the assumption has been confirmed
+                - verifier (str): Who is responsible for confirming it, or who confirmed it
+                - verifiedOn (date or ISO date str): When it was confirmed
         """
         if name is not None:
             kwargs["name"] = name
