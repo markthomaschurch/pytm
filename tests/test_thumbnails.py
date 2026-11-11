@@ -393,7 +393,8 @@ def test_cli_writes_thumbnails_and_report_links(tmp_path):
     )
 
     assert result.returncode == 0, result.stderr
-    assert sorted(p.name for p in (tmp_path / "out/thumbs").iterdir()) == [
+    written = (tmp_path / "out/thumbs").iterdir()
+    assert sorted(p.name for p in written if not p.name.startswith("legend-")) == [
         "actor-user.svg",
         "dataflow-login.svg",
         "server-web-server.svg",

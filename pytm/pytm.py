@@ -745,6 +745,14 @@ def get_args():
     parser.add_argument("--debug", action="store_true", help="print debug messages")
     parser.add_argument("--dfd", action="store_true", help="output DFD")
     parser.add_argument(
+        "--legend",
+        action="store_true",
+        help=(
+            "output a legend of the DFD's shapes (and, with --colormap, "
+            "colours) as a separate diagram"
+        ),
+    )
+    parser.add_argument(
         "--report",
         metavar="TEMPLATE",
         help=(

@@ -422,4 +422,9 @@ def render_thumbnails(
                 )
         written[name] = path
         TM._thumbnails[name] = f"{prefix}/{path.name}" if prefix else path.name
+
+    # The report's legend shows the same shapes and colours as images.
+    from .legend import render_legend_images
+
+    render_legend_images(out, fmt="svg" if fmt == "svg" else "png", link_prefix=prefix)
     return written

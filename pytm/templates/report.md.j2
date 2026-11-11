@@ -4,6 +4,9 @@
     Variables (set with --report-var KEY=VALUE):
       dfd_image  path of the dataflow diagram image (default: dfd.png; empty to omit)
       seq_image  path of the sequence diagram image (default: seq.png; empty to omit)
+      dfd_colormap
+                 "yes" if dfd_image was rendered with --colormap, to explain its
+                 colours in the legend (default: no)
       pandoc_metadata
                  "no" to leave out the pandoc metadata block at the top, which
                  makes links visible in PDF output (colorlinks), sets 0.75in
@@ -30,6 +33,7 @@ header-includes:
 {% endif %}
 {% set dfd_image = dfd_image | default("dfd.png") %}
 {% set seq_image = seq_image | default("seq.png") %}
+{% set dfd_colormap = (dfd_colormap | default("no") | string | lower) in ("yes", "true", "1") %}
 {% include "sections/title.md.j2" %}
 {% include "sections/diagrams.md.j2" %}
 {% include "sections/data_dictionary.md.j2" %}

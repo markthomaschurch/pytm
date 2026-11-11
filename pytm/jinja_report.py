@@ -11,7 +11,9 @@ Templates receive the same variables as format-string templates (``tm``,
 Functions
     ``anchor(obj)``, ``label(obj)`` (name, or a stand-in for unnamed objects),
     ``heading_id(obj)``, ``threat_anchor(finding_or_threat)``,
-    ``link(obj, text=None)``, ``thumbnail(obj)``, ``controls_in_place(obj)``
+    ``link(obj, text=None)``, ``thumbnail(obj)``, ``controls_in_place(obj)``,
+    ``legend_entries()``, ``severity_entries()``, ``legend_image(key)``
+    (see :mod:`pytm.legend`)
 
 Cross-references (see :mod:`pytm.relations`)
     ``flows_of(element, direction=None)``, ``data_of(element)``,
@@ -196,6 +198,7 @@ def _environment(template_dir: Path):
         ) from exc
 
     from .anchors import anchor, label, slugify
+    from .legend import legend_entries, legend_image, severity_entries
     from .relations import format_condition
     from .report_util import ReportUtils
 
@@ -238,6 +241,9 @@ def _environment(template_dir: Path):
         link=link,
         thumbnail=thumbnail,
         controls_in_place=controls_in_place,
+        legend_entries=legend_entries,
+        severity_entries=severity_entries,
+        legend_image=legend_image,
     )
     return env
 

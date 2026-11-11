@@ -79,17 +79,19 @@ lower overhead and more convenient alternative to the OCI container approach.
 All available arguments:
 
 ```text
-usage: tm.py [-h] [--debug] [--dfd] [--report TEMPLATE] [--list-templates]
-             [--report-var KEY=VALUE] [--exclude EXCLUDE] [--seq] [--list]
-             [--colormap] [--describe DESCRIBE] [--list-elements]
-             [--json JSON] [--thumbnails DIR] [--thumbnail-format {png,svg}]
-             [--thumbnail-prefix PREFIX] [--levels LEVELS [LEVELS ...]]
-             [--stale_days STALE_DAYS]
+usage: tm.py [-h] [--debug] [--dfd] [--legend] [--report TEMPLATE]
+             [--list-templates] [--report-var KEY=VALUE] [--exclude EXCLUDE]
+             [--seq] [--list] [--colormap] [--describe DESCRIBE]
+             [--list-elements] [--json JSON] [--thumbnails DIR]
+             [--thumbnail-format {png,svg}] [--thumbnail-prefix PREFIX]
+             [--levels LEVELS [LEVELS ...]] [--stale_days STALE_DAYS]
 
 options:
   -h, --help            show this help message and exit
   --debug               print debug messages
   --dfd                 output DFD
+  --legend              output a legend of the DFD's shapes (and, with
+                        --colormap, colours) as a separate diagram
   --report TEMPLATE     output a report using TEMPLATE: a file (relative to
                         the current directory), or the name of a template
                         shipped with pytm, e.g. basic_template.md or
@@ -315,6 +317,8 @@ Generates this diagram:
 
 ![dfd.png](docs/diagrams/dfd.png)
 
+`tm.py --legend` outputs a legend for the DFD as a separate diagram: a sample of each shape the model uses and, with `--colormap`, what each colour means (`tm.py --legend --colormap | dot -Tpng -o legend.png`). The legend is drawn by the same code as the DFD, so it always matches it.
+
 Adding ".levels = [1,2]" attributes to an element will cause it (and its associated Dataflows if both flow endings are in the same DFD level) to render (or not) depending on the command argument "--levels 1 2".
 
 The following command generates a Sequence diagram.
@@ -425,7 +429,7 @@ cd report && pandoc report.md -s --embed-resources -o report.html && pandoc repo
 
 It contains a summary; the dataflow and sequence diagrams; a data dictionary (each piece of data with the elements that handle it, the dataflows that carry it and the threats against them); sections for actors, dataflows, assets and trust boundaries (details, controls in place, attached dataflows, data, findings and thumbnails); every finding with how to resolve it (the specific values to change, e.g. "set `controls.sanitizesInput` to `True`", with alternatives when there are several ways; alternatives that only add safeguards come first, and changes that merely describe the system differently, such as `isResponse` or `inScope`, are marked); and a threat library limited to the threats that apply to the model, with each condition laid out over short lines and one reference per line. Every element, finding and threat links to the others.
 
-The diagrams default to `dfd.png` and `seq.png` next to the report; change them with `--report-var dfd_image=PATH` and `--report-var seq_image=PATH`, or set one to an empty value to leave it out. The report starts with a small pandoc metadata block that makes links visible in PDF output (`colorlinks`) and sets the HTML page title; leave it out with `--report-var pandoc_metadata=no`. The links use pandoc's heading IDs (`{#...}`), so they work in pandoc's HTML and PDF output but not in Markdown previews (such as GitHub's) that don't support heading attributes.
+The diagrams default to `dfd.png` and `seq.png` next to the report; change them with `--report-var dfd_image=PATH` and `--report-var seq_image=PATH`, or set one to an empty value to leave it out. A legend table follows the DFD; if `dfd.png` was rendered with `--colormap`, add `--report-var dfd_colormap=yes` to explain its colours too. When thumbnails are rendered (`--thumbnails`), the same step draws each legend shape and colour as a small image, and the legend table shows those instead of their names. The report starts with a small pandoc metadata block that makes links visible in PDF output (`colorlinks`) and sets the HTML page title; leave it out with `--report-var pandoc_metadata=no`. The links use pandoc's heading IDs (`{#...}`), so they work in pandoc's HTML and PDF output but not in Markdown previews (such as GitHub's) that don't support heading attributes.
 
 The report is built from sub-templates (`pytm/templates/sections/*.md.j2`) and shared macros (`pytm/templates/_macros.md.j2`). To customize one part, copy `report.md.j2` next to your model, and add a file with the same name as the section you want to change (for example `sections/threats.md.j2`): templates next to your template are used before the built-in ones.
 

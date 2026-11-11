@@ -62,6 +62,8 @@ class TMState:
     ignored_duplicates: List["Dataflow"] = field(default_factory=list)
     # anchor -> link to the element's thumbnail, filled by render_thumbnails()
     thumbnails: dict[str, str] = field(default_factory=dict)
+    # legend item key -> link to its image, filled by render_legend_images()
+    legend_images: dict[str, str] = field(default_factory=dict)
     # relations of the report being rendered (see pytm.relations.current())
     report_relations: Any = None
 
@@ -139,6 +141,7 @@ class TM(BaseModel, metaclass=TMModelMetaclass):
     _data: ClassVar[_StateAttribute] = _StateAttribute("data")
     _threatsExcluded: ClassVar[_StateAttribute] = _StateAttribute("threats_excluded")
     _thumbnails: ClassVar[_StateAttribute] = _StateAttribute("thumbnails")
+    _legend_images: ClassVar[_StateAttribute] = _StateAttribute("legend_images")
 
     @classmethod
     def _get_state(cls) -> TMState:
@@ -435,11 +438,14 @@ a brief description of the system being modeled."""
         if getattr(result, "seq", False):
             print(self.seq())
 
+        colormap = getattr(result, "colormap", False)
         if getattr(result, "dfd", False):
-            if getattr(result, "colormap", False):
+            if colormap:
                 self.resolve()
             levels = set(getattr(result, "levels", []) or [])
-            print(self.dfd(colormap=getattr(result, "colormap", False), levels=levels))
+            print(self.dfd(colormap=colormap, levels=levels))
+        if getattr(result, "legend", False):
+            print(self.legend(colormap=colormap))
 
         needs_resolution = any(
             getattr(result, attr, None)
@@ -611,6 +617,12 @@ a brief description of the system being modeled."""
         return self._dfd_template().format(
             edges=indent("\n".join(filter(len, edges)), "    ").rstrip("\n")
         )
+
+    def legend(self, colormap: bool = False) -> str:
+        """DOT for a standalone legend of the model's DFD (see pytm.legend)."""
+        from .legend import legend_dot
+
+        return legend_dot(colormap=colormap)
 
     @staticmethod
     def _boundary_height(boundary) -> int:
