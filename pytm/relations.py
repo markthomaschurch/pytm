@@ -3,7 +3,8 @@
 Answers the questions a report needs to link its sections together: which
 dataflows touch an element, which data it produces or consumes, which
 elements handle a piece of data, which threats fired against an element (and
-in the model as a whole), and which values to change to resolve a finding.
+in the model as a whole), which values to change to resolve a finding, and
+which assumptions were made and what they suppressed.
 
 During :meth:`pytm.TM.report` the helpers return the same (copied and
 HTML-escaped) objects the template iterates over, so names, links and threat
@@ -697,6 +698,35 @@ def _generator_lines(node: ast.GeneratorExp, width: int) -> list[str]:
     return lines
 
 
+@dataclass(frozen=True)
+class AssumptionEntry:
+    """An assumption, what it was made about, and what it suppressed."""
+
+    assumption: Any
+    owner: Any  # the element it was made about, or None for the whole model
+    anchor: str
+    suppressed: tuple[Any, ...]  # the findings it suppressed
+    # Threat ids in its ``exclude`` that suppressed no finding, and those
+    # that are not in the threat library at all (usually a typo).
+    unused: tuple[str, ...]
+    unknown: tuple[str, ...]
+
+    @property
+    def name(self) -> str:
+        return self.assumption.name
+
+    @property
+    def description(self) -> str:
+        return self.assumption.description
+
+    @property
+    def exclude(self) -> list[str]:
+        return sorted(self.assumption.exclude)
+
+    def display_label(self) -> str:
+        return self.assumption.name or "(unnamed assumption)"
+
+
 class Relations:
     """Index of the model's relationships, optionally for one report."""
 
@@ -718,6 +748,14 @@ class Relations:
             self._findings = list(context["findings"])
         else:
             self._findings = [f for e in self._elements for f in e.findings]
+        tm = context.get("tm")
+        self._model_assumptions = list(getattr(tm, "assumptions", None) or [])
+        self._suppressed = list(
+            context.get("excluded_findings")
+            or getattr(tm, "excluded_findings", None)
+            or []
+        )
+        self._assumption_entries: list[AssumptionEntry] | None = None
 
     # -- helpers ----------------------------------------------------------
 
@@ -835,6 +873,112 @@ class Relations:
         """Findings produced by *threat* (a threat, or a threat id)."""
         threat_id = getattr(threat, "id", threat)
         return [f for f in self._findings if f.threat_id == threat_id]
+
+    # -- assumptions and what they suppress --------------------------------
+
+    def _owner_of(self, finding: Any) -> Any:
+        """The element whose assumption suppressed *finding* (None: model)."""
+        element = self._original(getattr(finding, "element", None))
+        own = getattr(element, "assumptions", None) or []
+        return element if any(a == finding.assumption for a in own) else None
+
+    def _entries(self) -> list[AssumptionEntry]:
+        """Every assumption: the model's, then each element's, in order."""
+        if self._assumption_entries is not None:
+            return self._assumption_entries
+        from .anchors import anchor, slugify
+
+        known = {t.id for t in self._threat_library}
+        owners = [(None, a) for a in self._model_assumptions]
+        owners += [
+            (e, a)
+            for e in self._elements
+            for a in getattr(e, "assumptions", None) or []
+        ]
+        used: set[str] = set()
+        entries = []
+        for owner, assumption in owners:
+            base = "assumption-" + slugify(assumption.name, fallback="unnamed")
+            if owner is not None:
+                base = f"{anchor(owner)}-{base}"
+            candidate, number = base, 2
+            while candidate in used:
+                candidate, number = f"{base}-{number}", number + 1
+            used.add(candidate)
+            suppressed = tuple(
+                f
+                for f in self._suppressed
+                if f.assumption == assumption
+                and _uuid(self._owner_of(f)) == _uuid(owner)
+            )
+            hit = {f.threat_id for f in suppressed}
+            entries.append(
+                AssumptionEntry(
+                    assumption,
+                    self._show(owner) if owner is not None else None,
+                    candidate,
+                    suppressed,
+                    tuple(
+                        t
+                        for t in sorted(assumption.exclude)
+                        if t in known and t not in hit
+                    ),
+                    tuple(t for t in sorted(assumption.exclude) if t not in known),
+                )
+            )
+        self._assumption_entries = entries
+        return entries
+
+    def assumptions(self, owner: Any = None) -> list[AssumptionEntry]:
+        """Assumptions about *owner* (an element), or about the whole model."""
+        uid = _uuid(owner)
+        return [
+            e
+            for e in self._entries()
+            if (e.owner is None if owner is None else _uuid(e.owner) == uid)
+        ]
+
+    def assumption_of(self, finding: Any) -> AssumptionEntry | None:
+        """The assumption that suppressed *finding*."""
+        # By identity: comparing findings compares their elements, whose
+        # references lead back to the findings.
+        return next(
+            (e for e in self._entries() if any(f is finding for f in e.suppressed)),
+            None,
+        )
+
+    def suppressed(self, element: Any = None) -> list[Any]:
+        """Findings suppressed by an assumption: all, or those on *element*."""
+        if element is None:
+            return list(self._suppressed)
+        uid = _uuid(element)
+        return [
+            f for f in self._suppressed if _uuid(getattr(f, "element", None)) == uid
+        ]
+
+    def data_suppressed(self, datum: Any) -> list[Any]:
+        """Suppressed findings on the dataflows carrying *datum*."""
+        uids = {_uuid(f) for f in self._flows if datum in f.data}
+        return [
+            f for f in self._suppressed if _uuid(getattr(f, "element", None)) in uids
+        ]
+
+    def suppressed_for(self, threat: Any) -> list[Any]:
+        """Suppressed findings of *threat* (a threat, or a threat id)."""
+        threat_id = getattr(threat, "id", threat)
+        return [f for f in self._suppressed if f.threat_id == threat_id]
+
+    def reported_threats(self) -> list[Any]:
+        """Threats with a finding, or a finding an assumption suppressed."""
+        ids = {f.threat_id for f in self._findings + self._suppressed}
+        return [t for t in self._threats if t.id in ids]
+
+    def excluded_threats(self) -> list[tuple[str, Any]]:
+        """Threats left out with ``--exclude``: (id, threat, or None if unknown)."""
+        from .tm import TM
+
+        library = {t.id: t for t in self._threats}
+        return [(sid, library.get(sid)) for sid in TM._threatsExcluded]
 
     def remedies(self, finding: Any) -> list[list[Change]]:
         """Alternative sets of changes that would resolve *finding*."""

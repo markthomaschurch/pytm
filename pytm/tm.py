@@ -865,6 +865,7 @@ a brief description of the system being modeled."""
 
         threats = encode_threat_data(TM._threats)
         findings = encode_threat_data(getattr(self, "findings", []))
+        excluded_findings = encode_threat_data(getattr(self, "excluded_findings", []))
 
         elements = encode_element_threat_data(TM._elements)
         assets = encode_element_threat_data(TM._assets)
@@ -877,6 +878,7 @@ a brief description of the system being modeled."""
             "dataflows": flows,
             "threats": threats,
             "findings": findings,
+            "excluded_findings": excluded_findings,
             "elements": elements,
             "assets": assets,
             "actors": actors,

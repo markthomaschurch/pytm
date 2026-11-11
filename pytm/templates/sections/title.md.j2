@@ -4,14 +4,30 @@
 {{ tm.description }}
 
 {% endif %}
-{% if tm.assumptions %}
+{% import "_macros.md.j2" as m %}
+{% set model_assumptions = assumptions_of() %}
+{% set left_out = excluded_threats() %}
+{% if model_assumptions or left_out %}
 ## Assumptions { #section-assumptions }
 
-{% for a in tm.assumptions %}
-- **{{ a.name | md_escape }}**{% if a.description %}: {{ a.description | md_escape }}{% endif %}{% if a.exclude %} (excludes {{ a.exclude | sort | join(", ") }}){% endif %}
+{% if model_assumptions %}
+Assumptions about the whole model. Assumptions about one element are listed
+in that element's section.
+
+{{ m.assumption_items(model_assumptions) }}
+
+{% endif %}
+{% if left_out %}
+### Threats left out of the analysis { #section-excluded-threats }
+
+These threats were not checked for any element (`--exclude`):
+
+{% for sid, t in left_out %}
+- {{ sid }}{% if t %}: {{ t.description }}{% else %} (not in the threat library){% endif %}
 
 {% endfor %}
 
+{% endif %}
 {% endif %}
 ## Summary { #section-summary }
 
@@ -28,5 +44,9 @@
 | &nbsp;&nbsp;{{ severity }} | {{ count }} |
 {% endif %}
 {% endfor %}
+{% set suppressed = suppressed_of() %}
+{% if suppressed %}
+| Suppressed findings | {{ suppressed | length }} |
+{% endif %}
 | Threats that fired | {{ fired_threats() | length }} |
 

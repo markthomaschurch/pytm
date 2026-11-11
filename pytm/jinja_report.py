@@ -186,6 +186,13 @@ def _relation_functions() -> dict[str, Any]:
         "fired_threats": lambda: current().fired_threats(),
         "findings_for": lambda threat: current().findings_for(threat),
         "remedies_of": lambda finding: current().remedies(finding),
+        "assumptions_of": lambda owner=None: current().assumptions(owner),
+        "assumption_of": lambda finding: current().assumption_of(finding),
+        "suppressed_of": lambda element=None: current().suppressed(element),
+        "suppressed_for": lambda threat: current().suppressed_for(threat),
+        "data_suppressed_of": lambda datum: current().data_suppressed(datum),
+        "reported_threats": lambda: current().reported_threats(),
+        "excluded_threats": lambda: current().excluded_threats(),
     }
 
 

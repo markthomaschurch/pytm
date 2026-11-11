@@ -177,6 +177,7 @@ def test_builtin_templates_are_shipped():
         "sections/dataflows.md.j2",
         "sections/diagrams.md.j2",
         "sections/legend.md.j2",
+        "sections/suppressed.md.j2",
         "sections/threat_library.md.j2",
         "sections/threats.md.j2",
         "sections/title.md.j2",

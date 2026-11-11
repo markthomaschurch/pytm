@@ -62,6 +62,41 @@ None.
 {% endfor %}
 {% endmacro %}
 
+{# Bullet list of findings an assumption suppressed, each with the
+   assumption that suppressed it; with_target for findings on other
+   elements (laid out like targeted_finding_list). #}
+{% macro suppressed_list(findings, with_target=false) %}
+{% for f in findings %}
+{% set a = assumption_of(f) %}
+{% if with_target %}
+- [Suppressed finding {{ f.id }}](#{{ anchor(f) }}) on {{ link(f.element) }}: [{{ f.threat_id }}](#{{ threat_anchor(f) }}) {{ f.description }} ({{ f.severity }}), by {{ link(a) if a else "an assumption" }}
+{% else %}
+- [{{ f.threat_id }}](#{{ threat_anchor(f) }}) {{ f.description }} ({{ f.severity }}, [suppressed finding {{ f.id }}](#{{ anchor(f) }})), by {{ link(a) if a else "an assumption" }}
+{% endif %}
+{% else %}
+None.
+{% endfor %}
+{% endmacro %}
+
+{# Assumptions (from assumptions_of()), each with its link target, its
+   description and what it suppressed. Excluded threat ids that suppressed
+   nothing are listed too: the assumption may be stale, or the id a typo. #}
+{% macro assumption_items(entries) %}
+{% for a in entries %}
+- [**{{ a | label | md_escape }}**]{{ "{#" ~ a.anchor ~ "}" }}{% if a.description %}: {{ a.description | md_escape }}{% endif %}
+
+{% for f in a.suppressed %}
+    - Suppresses [{{ f.threat_id }}](#{{ threat_anchor(f) }}) on {{ link(f.element) }} ([suppressed finding {{ f.id }}](#{{ anchor(f) }}))
+{% endfor %}
+{% if a.unused %}
+    - Excludes {{ a.unused | join(", ") }}, which suppressed no finding
+{% endif %}
+{% if a.unknown %}
+    - Excludes {{ a.unknown | join(", ") }}, which {{ "is" if a.unknown | length == 1 else "are" }} not in the threat library
+{% endif %}
+{% endfor %}
+{% endmacro %}
+
 {# Bullet list of findings on other elements: a link to each finding's
    details, the element it is on, and its threat (linked to the library). #}
 {% macro targeted_finding_list(findings) %}
@@ -149,4 +184,24 @@ None.
 **Threats:**
 
 {{ finding_list(findings_of(el)) }}
+{{ assumptions_and_suppressed(el) }}
+{% endmacro %}
+
+{# The element's own assumptions and the threats suppressed on it (by its
+   assumptions or the model's); nothing if it has neither. #}
+{% macro assumptions_and_suppressed(el) %}
+{% set own = assumptions_of(el) %}
+{% if own %}
+
+**Assumptions:**
+
+{{ assumption_items(own) }}
+{% endif %}
+{% set hidden = suppressed_of(el) %}
+{% if hidden %}
+
+**Suppressed threats:**
+
+{{ suppressed_list(hidden) }}
+{% endif %}
 {% endmacro %}
