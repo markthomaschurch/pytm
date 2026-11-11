@@ -15,10 +15,12 @@ by ``uuid``, so a helper accepts either an original object or its copy.
 from __future__ import annotations
 
 import ast
+import copy
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Any
 
+from .condition_methods import method_expression
 from .roles import Role, field_role
 
 _MAX_VALUE_LENGTH = 80
@@ -68,6 +70,18 @@ class Change:
     subject: str = "target"
     subject_anchor: str = ""
     role: Role | None = None
+    # ("<=", value) etc. for ordered requirements, so several bounds on one
+    # attribute can be reconciled; not part of equality.
+    bound: tuple | None = field(default=None, compare=False, repr=False)
+    # The object the attribute belongs to (the target, or an item of one of
+    # its collections), used to check the change; not part of equality.
+    owner: Any = field(default=None, compare=False, repr=False)
+
+    @property
+    def is_computed(self) -> bool:
+        """True for the result of a method that has no expression form
+        (``@opaque_condition_method``): what to change is whatever it uses."""
+        return self.attribute.endswith(")")
 
     @property
     def is_mitigation(self) -> bool:
@@ -133,18 +147,6 @@ _MIRRORED = {
 }
 _MAX_REMEDIES = 8
 
-# Model methods used in threat conditions, written out as the expression they
-# compute, so remedies can name the values involved. {0}, {1}... are the
-# call's arguments.
-_METHOD_EXPRESSIONS = {
-    "hasDataLeaks": (
-        "any(d.classification > target.source.maxClassification"
-        " or d.classification > target.sink.maxClassification"
-        " or d.classification > target.maxClassification for d in target.data)"
-    ),
-    "checkTLSVersion": "any(f.tlsVersion < target.minTLSVersion for f in {0})",
-}
-
 
 class _Remedies:
     """Find minimal sets of value changes that make a condition false."""
@@ -185,6 +187,7 @@ class _Remedies:
             subject,
             subject_anchor,
             self._role(node, names),
+            owner=names.get(root, self.target) if root != "target" else self.target,
         )
 
     def _role(self, node: ast.AST, names: dict) -> Role | None:
@@ -228,7 +231,7 @@ class _Remedies:
             if found is not None:
                 return found
 
-        expanded = self._expand_method(node)
+        expanded = self._expand_method(node, names)
         if expanded is not None:
             return self.options(expanded, want, names)
 
@@ -261,24 +264,33 @@ class _Remedies:
             for n in ast.walk(node)
         )
 
-    @staticmethod
-    def _expand_method(node) -> ast.AST | None:
-        """``target.hasDataLeaks()`` -> the expression it computes."""
+    def _expand_method(self, node: ast.AST, names: dict) -> ast.AST | None:
+        """``target.hasDataLeaks()`` -> the expression the method computes.
+
+        Uses the expression the method is defined by (see
+        :mod:`pytm.condition_methods`), with ``self`` replaced by the object
+        the method is called on and each parameter by its argument.
+        """
         if not (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "target"
-            and node.func.attr in _METHOD_EXPRESSIONS
+            and self._settable(node.func.value, names)
             and not node.keywords
         ):
             return None
-        template = _METHOD_EXPRESSIONS[node.func.attr]
-        arguments = [ast.unparse(arg) for arg in node.args]
         try:
-            return ast.parse(template.format(*arguments), mode="eval").body
-        except (IndexError, SyntaxError):
+            receiver = self.evaluate(node.func.value, names)
+        except Exception:
             return None
+        found = method_expression(receiver, node.func.attr)
+        if found is None:
+            return None
+        expression, parameters = found
+        if len(node.args) != len(parameters):
+            return None
+        tree = ast.parse(expression, mode="eval").body
+        replacements = {"self": node.func.value, **dict(zip(parameters, node.args))}
+        return _Substitute(replacements).visit(tree)
 
     def _truth(self, node, names) -> bool | None:
         try:
@@ -331,6 +343,9 @@ class _Remedies:
             else:
                 relation = (_SAME if want else _NEGATED)[op]
                 required = f"{relation} {_describe(other)}".strip()
+                if relation in ("<", "<=", ">", ">="):
+                    change = self._change(left, required, names, current)
+                    return [frozenset({replace(change, bound=(relation, other))})]
         else:
             return []
         return [frozenset({self._change(left, required, names, current)})]
@@ -376,6 +391,40 @@ class _Remedies:
         return _minimal([o for options in per_item for o in options]) or None
 
 
+class _Substitute(ast.NodeTransformer):
+    """Replace names with expressions, and give comprehension variables
+    fresh names so they can't capture names from the calling condition."""
+
+    _counter = 0
+
+    def __init__(self, replacements: dict[str, ast.AST]):
+        self.replacements = dict(replacements)
+
+    def visit_comprehension(self, node: ast.comprehension) -> ast.AST:
+        node.iter = self.visit(node.iter)
+        if isinstance(node.target, ast.Name):
+            _Substitute._counter += 1
+            fresh = f"{node.target.id}_{_Substitute._counter}"
+            self.replacements[node.target.id] = ast.Name(fresh, ast.Load())
+            node.target = ast.Name(fresh, ast.Store())
+        node.ifs = [self.visit(condition) for condition in node.ifs]
+        return node
+
+    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> ast.AST:
+        # Bind the loop variables before visiting the element expression.
+        node.generators = [self.visit(g) for g in node.generators]
+        node.elt = self.visit(node.elt)
+        return node
+
+    visit_ListComp = visit_GeneratorExp
+
+    def visit_Name(self, node: ast.Name) -> ast.AST:
+        replacement = self.replacements.get(node.id)
+        if replacement is None:
+            return node
+        return ast.fix_missing_locations(copy.deepcopy(replacement))
+
+
 def _item_label(iterable: ast.AST, item: Any, remedies: _Remedies) -> str:
     """``data "Token"`` for an item of ``target.data``, else its name."""
     collection = remedies.text(iterable).rsplit(".", 1)[-1]
@@ -415,8 +464,52 @@ def _product(groups: list[list[frozenset]]) -> list[frozenset]:
     for group in groups:
         if not group:
             return []
-        combined = _minimal([a | b for a in combined for b in group])
+        merged = (_reconcile(a | b) for a in combined for b in group)
+        combined = _minimal([option for option in merged if option is not None])
     return combined
+
+
+def _reconcile(option: frozenset) -> frozenset | None:
+    """Merge requirements on the same attribute; None if they contradict.
+
+    Combining "``classification`` <= RESTRICTED" with "<= UNKNOWN" keeps the
+    stricter one; "<= PUBLIC" with ">= SECRET", or "True" with "False",
+    can't both hold, so the option is dropped.
+    """
+    groups: dict[tuple[str, str], list[Change]] = {}
+    for change in option:
+        groups.setdefault((change.subject, change.attribute), []).append(change)
+    kept: list[Change] = []
+    for changes in groups.values():
+        if len(changes) == 1:
+            kept.extend(changes)
+            continue
+        bounded = [c for c in changes if c.bound is not None]
+        other = [c for c in changes if c.bound is None]
+        if len({c.required for c in other}) > 1:
+            return None  # e.g. "True" and "False"
+        kept.extend(other[:1])
+        try:
+            upper = min(
+                (c for c in bounded if c.bound[0] in ("<", "<=")),
+                key=lambda c: (c.bound[1], c.bound[0] == "<="),
+                default=None,
+            )
+            lower = max(
+                (c for c in bounded if c.bound[0] in (">", ">=")),
+                key=lambda c: (c.bound[1], c.bound[0] == ">"),
+                default=None,
+            )
+        except TypeError:  # values that can't be ordered: keep them all
+            kept.extend(bounded)
+            continue
+        if upper is not None and lower is not None:
+            low, high = lower.bound[1], upper.bound[1]
+            strict = lower.bound[0] == ">" or upper.bound[0] == "<"
+            if low > high or (low == high and strict):
+                return None
+        kept.extend(c for c in (upper, lower) if c is not None)
+    return frozenset(kept)
 
 
 def remedies(threat: Any, target: Any) -> list[list[Change]]:
@@ -434,11 +527,56 @@ def remedies(threat: Any, target: Any) -> list[list[Change]]:
     finder = _Remedies(threat, target)
     tree = ast.parse(threat.condition, mode="eval")
     options = [o for o in finder.options(tree.body, False, {}) if o]
+    # Each clause is analysed on its own, so a change that falsifies one
+    # clause can make another one true; drop options shown not to work.
+    options = [o for o in options if _resolves(threat, target, o) is not False]
     ordered = sorted(
         _minimal(options, limit=None),
         key=lambda o: (not all(c.is_mitigation for c in o), len(o)),
     )[:_MAX_REMEDIES]
     return [sorted(o, key=lambda c: (c.subject, c.attribute)) for o in ordered]
+
+
+_NO_VALUE = object()
+
+
+def _concrete(change: Change) -> Any:
+    """A value that satisfies *change*, or _NO_VALUE if there's no single one."""
+    if change.bound is not None:
+        relation, value = change.bound
+        return value if relation in ("<=", ">=") else _NO_VALUE
+    try:
+        return ast.literal_eval(change.required)
+    except (ValueError, SyntaxError):
+        return _NO_VALUE
+
+
+def _resolves(threat: Any, target: Any, option: frozenset) -> bool | None:
+    """Does making every change in *option* stop *threat* applying to *target*?
+
+    The changes are applied to the model, the threat's condition is
+    evaluated, and the old values are put back. None when a change has no
+    single value to try (e.g. "something other than 'HTTP'") or can't be
+    applied.
+    """
+    saved = []
+    try:
+        for change in option:
+            value = _concrete(change)
+            if value is _NO_VALUE or change.owner is None or change.is_computed:
+                return None
+            *path, attr = change.attribute.split(".")
+            owner = change.owner
+            for part in path:
+                owner = getattr(owner, part)
+            saved.append((owner, attr, getattr(owner, attr)))
+            object.__setattr__(owner, attr, value)
+        return not threat.apply(target)
+    except Exception:
+        return None
+    finally:
+        for owner, attr, value in reversed(saved):
+            object.__setattr__(owner, attr, value)
 
 
 class Relations:

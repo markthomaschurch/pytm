@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
 from .roles import Role
 from .base import Assumption, Controls
+from .condition_methods import condition_method, opaque_condition_method
 from .enums import Classification, TLSVersion
 
 if TYPE_CHECKING:
@@ -265,6 +266,7 @@ class Element(BaseModel):
         """Get the color for this element."""
         return "black"
 
+    @opaque_condition_method
     def oneOf(self, *elements: Any) -> bool:
         """Return True if the element matches any provided elements or classes."""
         for element in elements:
@@ -275,6 +277,7 @@ class Element(BaseModel):
                 return True
         return False
 
+    @opaque_condition_method
     def crosses(self, *boundaries: Any) -> bool:
         """Return True if the flow crosses any of the provided boundaries."""
         if hasattr(self, "source") and hasattr(self, "sink"):
@@ -300,18 +303,21 @@ class Element(BaseModel):
                     return True
         return False
 
+    @opaque_condition_method
     def enters(self, *boundaries: Any) -> bool:
         """Return True if the flow enters any of the provided boundaries."""
         if hasattr(self, "source") and hasattr(self, "sink"):
             return self.source.inBoundary is None and self.sink.inside(*boundaries)
         return False
 
+    @opaque_condition_method
     def exits(self, *boundaries: Any) -> bool:
         """Return True if the flow exits any of the provided boundaries."""
         if hasattr(self, "source") and hasattr(self, "sink"):
             return self.source.inside(*boundaries) and self.sink.inBoundary is None
         return False
 
+    @opaque_condition_method
     def inside(self, *boundaries: Any) -> bool:
         """Return True if the element resides inside any of the provided boundaries."""
         for boundary in boundaries:
@@ -359,9 +365,9 @@ class Element(BaseModel):
         """Return a dictionary of all attribute values."""
         return self.model_dump()
 
+    @condition_method("any(f.tlsVersion < self.minTLSVersion for f in flows)")
     def checkTLSVersion(self, flows: List["Dataflow"]) -> bool:
         """Check if any flows have insufficient TLS version."""
-        return any(f.tlsVersion < self.minTLSVersion for f in flows)
 
     def _set_severity(self, sev: Any) -> None:
         """Set the severity based on numeric or textual value."""

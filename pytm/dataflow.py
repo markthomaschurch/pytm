@@ -5,6 +5,7 @@ from pydantic import Field, field_validator, model_validator
 
 from .roles import Role
 from .element import Element, sev_to_color
+from .condition_methods import condition_method
 from .enums import Classification, TLSVersion
 from .base import DataSet
 
@@ -239,11 +240,10 @@ class Dataflow(Element):
             color=color,
         )
 
+    @condition_method(
+        "any(d.classification > self.source.maxClassification"
+        " or d.classification > self.sink.maxClassification"
+        " or d.classification > self.maxClassification for d in self.data)"
+    )
     def hasDataLeaks(self) -> bool:
         """Check if this dataflow has data leaks."""
-        return any(
-            d.classification > self.source.maxClassification
-            or d.classification > self.sink.maxClassification
-            or d.classification > self.maxClassification
-            for d in self.data
-        )
