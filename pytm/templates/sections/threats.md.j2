@@ -21,6 +21,10 @@
     ("Response", f.response),
 ]) }}
 
+{% for a in pending_assumptions_of(f) %}
+**Pending verification:** {{ link(a) }} would suppress this finding once it is verified. {{ m.verification(a) }}.
+
+{% endfor %}
 {{ m.remedy_list(f) }}
 
 {% endfor %}

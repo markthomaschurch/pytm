@@ -193,6 +193,13 @@ def _relation_functions() -> dict[str, Any]:
         "data_suppressed_of": lambda datum: current().data_suppressed(datum),
         "reported_threats": lambda: current().reported_threats(),
         "excluded_threats": lambda: current().excluded_threats(),
+        "all_assumptions": lambda: current().all_assumptions(),
+        "pending_assumptions_of": lambda finding: current().pending_assumptions_of(
+            finding
+        ),
+        "requires_verified_assumptions": lambda: (
+            current().requires_verified_assumptions()
+        ),
     }
 
 

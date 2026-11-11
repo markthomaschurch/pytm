@@ -181,6 +181,7 @@ def test_builtin_templates_are_shipped():
         "sections/threat_library.md.j2",
         "sections/threats.md.j2",
         "sections/title.md.j2",
+        "sections/verification.md.j2",
     ]
 
 

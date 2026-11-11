@@ -78,6 +78,11 @@ None.
 {% endfor %}
 {% endmacro %}
 
+{# Who verified an assumption and when, or who is responsible for it. #}
+{% macro verification(a) -%}
+{% if a.verified %}Verified{% if a.verifier %} by {{ a.verifier | md_escape }}{% endif %}{% if a.verifiedOn %} on {{ a.verifiedOn }}{% endif %}{% else %}Not verified; {% if a.verifier %}to be verified by {{ a.verifier | md_escape }}{% else %}no one is responsible for verifying it{% endif %}{% endif %}
+{%- endmacro %}
+
 {# Assumptions (from assumptions_of()), each with its link target, its
    description and what it suppressed. Excluded threat ids that suppressed
    nothing are listed too: the assumption may be stale, or the id a typo. #}
@@ -85,8 +90,12 @@ None.
 {% for a in entries %}
 - [**{{ a | label | md_escape }}**]{{ "{#" ~ a.anchor ~ "}" }}{% if a.description %}: {{ a.description | md_escape }}{% endif %}
 
+    - {{ verification(a) }}
 {% for f in a.suppressed %}
     - Suppresses [{{ f.threat_id }}](#{{ threat_anchor(f) }}) on {{ link(f.element) }} ([suppressed finding {{ f.id }}](#{{ anchor(f) }}))
+{% endfor %}
+{% for f in a.pending %}
+    - Would suppress [{{ f.threat_id }}](#{{ threat_anchor(f) }}) on {{ link(f.element) }} ([finding {{ f.id }}](#{{ anchor(f) }})) once verified
 {% endfor %}
 {% if a.unused %}
     - Excludes {{ a.unused | join(", ") }}, which suppressed no finding

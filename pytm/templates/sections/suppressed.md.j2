@@ -23,6 +23,7 @@ counted as findings. Each one holds only as long as its assumption does.
     ("Severity", f.severity),
     ("Suppressed by", link(a) if a else ""),
     ("Assumption about", (link(a.owner) if a.owner else "the whole model") if a else ""),
+    ("Verification", m.verification(a) if a else ""),
 ]) }}
 
 {% if a and a.description %}

@@ -710,6 +710,9 @@ class AssumptionEntry:
     # that are not in the threat library at all (usually a typo).
     unused: tuple[str, ...]
     unknown: tuple[str, ...]
+    # Findings it would suppress once verified (only when the model
+    # requires verified assumptions).
+    pending: tuple[Any, ...] = ()
 
     @property
     def name(self) -> str:
@@ -722,6 +725,18 @@ class AssumptionEntry:
     @property
     def exclude(self) -> list[str]:
         return sorted(self.assumption.exclude)
+
+    @property
+    def verified(self) -> bool:
+        return self.assumption.verified
+
+    @property
+    def verifier(self) -> str:
+        return self.assumption.verifier
+
+    @property
+    def verifiedOn(self) -> Any:
+        return self.assumption.verifiedOn
 
     def display_label(self) -> str:
         return self.assumption.name or "(unnamed assumption)"
@@ -750,6 +765,7 @@ class Relations:
             self._findings = [f for e in self._elements for f in e.findings]
         tm = context.get("tm")
         self._model_assumptions = list(getattr(tm, "assumptions", None) or [])
+        self._require_verified = bool(getattr(tm, "requireVerifiedAssumptions", False))
         self._suppressed = list(
             context.get("excluded_findings")
             or getattr(tm, "excluded_findings", None)
@@ -911,7 +927,18 @@ class Relations:
                 if f.assumption == assumption
                 and _uuid(self._owner_of(f)) == _uuid(owner)
             )
-            hit = {f.threat_id for f in suppressed}
+            pending: tuple[Any, ...] = ()
+            if self._require_verified and not assumption.verified:
+                pending = tuple(
+                    f
+                    for f in self._findings
+                    if f.threat_id in assumption.exclude
+                    and (
+                        owner is None
+                        or _uuid(getattr(f, "element", None)) == _uuid(owner)
+                    )
+                )
+            hit = {f.threat_id for f in suppressed + pending}
             entries.append(
                 AssumptionEntry(
                     assumption,
@@ -924,6 +951,7 @@ class Relations:
                         if t in known and t not in hit
                     ),
                     tuple(t for t in sorted(assumption.exclude) if t not in known),
+                    pending,
                 )
             )
         self._assumption_entries = entries
@@ -946,6 +974,18 @@ class Relations:
             (e for e in self._entries() if any(f is finding for f in e.suppressed)),
             None,
         )
+
+    def all_assumptions(self) -> list[AssumptionEntry]:
+        """Every assumption: the model's, then each element's, in order."""
+        return list(self._entries())
+
+    def pending_assumptions_of(self, finding: Any) -> list[AssumptionEntry]:
+        """Unverified assumptions that would suppress *finding* once verified."""
+        return [e for e in self._entries() if any(f is finding for f in e.pending)]
+
+    def requires_verified_assumptions(self) -> bool:
+        """Does the model only let verified assumptions suppress threats?"""
+        return self._require_verified
 
     def suppressed(self, element: Any = None) -> list[Any]:
         """Findings suppressed by an assumption: all, or those on *element*."""

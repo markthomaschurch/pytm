@@ -35,6 +35,7 @@ header-includes:
 {% set seq_image = seq_image | default("seq.png") %}
 {% set dfd_colormap = (dfd_colormap | default("no") | string | lower) in ("yes", "true", "1") %}
 {% include "sections/title.md.j2" %}
+{% include "sections/verification.md.j2" %}
 {% include "sections/diagrams.md.j2" %}
 {% include "sections/data_dictionary.md.j2" %}
 {% include "sections/actors.md.j2" %}
