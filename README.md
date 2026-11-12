@@ -24,6 +24,22 @@ Based on your input and definition of the architectural design, pytm can automat
 * Java (OpenJDK 10 or 11)
 * [plantuml.jar](http://sourceforge.net/projects/plantuml/files/plantuml.jar/download)
 
+## Installation
+
+```
+pip install pytm
+```
+
+A model is a Python script that imports pytm, so run it with the Python pytm is installed in (`python tm.py --dfd`), or with the `pytm` command that comes with the package:
+
+```
+pytm tm.py --dfd | dot -Tpng -o dfd.png
+```
+
+The `pytm` command also works when pytm is installed in its own environment, for example with [pipx](https://pipx.pypa.io/) (`pipx install pytm`), where a plain `python tm.py` could not import it. Options after the model are the model's own; see `pytm tm.py --help`.
+
+Graphviz, PlantUML (with Java) and pandoc are separate tools; install them to render diagrams and reports.
+
 ## Getting Started
 
 The `tm.py` is an example model. You can run it to generate the report and diagram image files that it references:

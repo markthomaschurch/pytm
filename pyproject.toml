@@ -6,8 +6,14 @@ authors = [{ name = "pytm Team", email = "please_use_github_issues@nowhere.com" 
 license = "MIT"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
+keywords = ["threat modeling", "threat model", "security", "data flow diagram", "OWASP"]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
@@ -19,8 +25,15 @@ dependencies = [
     "pydantic>=2.10.0,<3.0.0",
 ]
 
+[project.scripts]
+pytm = "pytm.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/OWASP/pytm"
+Repository = "https://github.com/OWASP/pytm"
+Issues = "https://github.com/OWASP/pytm/issues"
+Changelog = "https://github.com/OWASP/pytm/blob/master/CHANGELOG.md"
+"OWASP project" = "https://owasp.org/www-project-pytm/"
 
 [dependency-groups]
 dev = [
@@ -52,3 +65,5 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pytm"]
+# Developer notes, not part of the installed package.
+exclude = ["pytm/TODO.txt"]
