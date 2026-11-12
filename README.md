@@ -454,6 +454,16 @@ The diagrams default to `dfd.png` and `seq.png` next to the report; change them 
 
 The report is built from sub-templates (`pytm/templates/sections/*.md.j2`) and shared macros (`pytm/templates/_macros.md.j2`). To customize one part, copy `report.md.j2` next to your model, and add a file with the same name as the section you want to change (for example `sections/threats.md.j2`): templates next to your template are used before the built-in ones.
 
+#### Action report
+
+`pytm:actions.md.j2` is a shorter report of only what needs doing, rendered the same way (`--report pytm:actions.md.j2`, with the same `--report-var` variables). After the diagrams it lists:
+
+- **Threats by severity:** every finding, Very High first, with its target, mitigations and how to resolve it, and a note when an unverified assumption would suppress it once verified.
+- **Assumptions to verify:** the unverified assumptions that would suppress findings once verified (with `tm.requireVerifiedAssumptions`), ordered by the combined severity of those findings (Very High counts 5, High 4, Medium 3, Low 2, Very Low 1), each with who is responsible and the findings it would suppress.
+- **Assumptions to verify, by person:** each verifier's list, then those no one is assigned.
+
+Everything else is left out: suppressed findings, verified assumptions, assumptions that affect no finding, and the element, data and threat library sections (links that would point at them, such as a finding's target, are shown as plain text).
+
 #### Jinja2 templates
 
 Templates whose name ends in `.j2` or `.jinja` (for example `report.md.j2`) are rendered with [Jinja2](https://jinja.palletsprojects.com/) instead. Install it with `pip install 'pytm[jinja]'`. Jinja2 templates get the same variables (`tm`, `elements`, `assets`, `actors`, `boundaries`, `dataflows`, `data`, `threats`, `findings`) plus:
@@ -491,6 +501,7 @@ These helpers link the parts of a model together. In format-string templates cal
 | (Jinja2 only) `assumptions_of(el=None)` | assumptions about an element, or about the whole model: each with `name`, `description`, `exclude`, `anchor`, the findings it `suppressed`, and the excluded threat IDs that suppressed nothing (`unused`) or aren't in the threat library (`unknown`) |
 | (Jinja2 only) `suppressed_of(el=None)`, `suppressed_for(threat)`, `data_suppressed_of(data)`, `assumption_of(finding)` | findings an assumption suppressed (all, on an element, of a threat, or on the dataflows that carry the data), and the assumption that suppressed one |
 | (Jinja2 only) `all_assumptions()`, `pending_assumptions_of(finding)`, `requires_verified_assumptions()` | every assumption (model's, then each element's), with `verified`, `verifier`, `verifiedOn` and, when the model requires verified assumptions, the findings it would suppress once verified (`pending`); the unverified assumptions that would suppress a finding; and whether `tm.requireVerifiedAssumptions` is set |
+| (Jinja2 only) `assumptions_by_risk()`, `findings_by_severity(findings)` | unverified assumptions that would suppress findings once verified, the most at stake first (each with `pending`, `risk` and `risk_counts()`); findings grouped by severity as `(severity, findings)` pairs, most severe first |
 | (Jinja2 only) `reported_threats()` | threats with a finding or a suppressed finding, for a threat library |
 | (Jinja2 only) `excluded_threats()` | threats left out with `--exclude`, as `(id, threat)` pairs (`threat` is `None` for an unknown id) |
 | `getFindingRemedies` (`remedies_of(finding)`) | how to resolve a finding: alternative sets of changes, each with `attribute`, `required`, `current`, `subject` and a readable `instruction`; making every change in any one set makes the threat stop applying |

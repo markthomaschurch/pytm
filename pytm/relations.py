@@ -698,6 +698,24 @@ def _generator_lines(node: ast.GeneratorExp, width: int) -> list[str]:
     return lines
 
 
+# Weight of each threat severity, for ordering findings and assumptions.
+SEVERITY_RANK = {
+    "very high": 5,
+    "critical": 5,
+    "high": 4,
+    "medium": 3,
+    "low": 2,
+    "very low": 1,
+    "info": 0,
+}
+SEVERITY_ORDER = ("Very High", "High", "Medium", "Low", "Very Low", "Info")
+
+
+def severity_rank(severity: Any) -> int:
+    """Weight of a severity name: 5 for "Very High" down to 0 for "Info"."""
+    return SEVERITY_RANK.get(str(severity or "").strip().lower(), 0)
+
+
 @dataclass(frozen=True)
 class AssumptionEntry:
     """An assumption, what it was made about, and what it suppressed."""
@@ -737,6 +755,25 @@ class AssumptionEntry:
     @property
     def verifiedOn(self) -> Any:
         return self.assumption.verifiedOn
+
+    @property
+    def risk(self) -> int:
+        """Combined severity of the findings it would suppress once verified."""
+        return sum(severity_rank(f.severity) for f in self.pending)
+
+    def risk_key(self) -> tuple:
+        """Sort key: highest combined, then highest single severity, first."""
+        ranks = [severity_rank(f.severity) for f in self.pending]
+        return (-sum(ranks), -max(ranks, default=0), -len(ranks), self.name)
+
+    def risk_counts(self) -> list[tuple[str, int]]:
+        """(severity, number of pending findings), highest severity first."""
+        ranks = [severity_rank(f.severity) for f in self.pending]
+        return [
+            (name, ranks.count(severity_rank(name)))
+            for name in SEVERITY_ORDER
+            if severity_rank(name) in ranks
+        ]
 
     def display_label(self) -> str:
         return self.assumption.name or "(unnamed assumption)"
