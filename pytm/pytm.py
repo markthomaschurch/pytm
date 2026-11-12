@@ -609,7 +609,7 @@ def serialize(obj, nested=False):
         if attr_name in skip_attrs:
             continue
 
-        if isinstance(obj, Element) and attr_name in {"uuid", "_is_drawn", "is_drawn"}:
+        if isinstance(obj, Element) and attr_name == "uuid":
             continue
         if isinstance(obj, Finding) and attr_name == "element":
             continue
@@ -745,9 +745,36 @@ def get_args():
     parser.add_argument("--debug", action="store_true", help="print debug messages")
     parser.add_argument("--dfd", action="store_true", help="output DFD")
     parser.add_argument(
-        "--report",
+        "--legend",
+        action="store_true",
         help=(
-            "output report using the named template file (sample template file is under docs/basic_template.md)"
+            "output a legend of the DFD's shapes (and, with --colormap, "
+            "colours) as a separate diagram"
+        ),
+    )
+    parser.add_argument(
+        "--report",
+        metavar="TEMPLATE",
+        help=(
+            "output a report using TEMPLATE: a file (relative to the current "
+            "directory), or the name of a template shipped with pytm, e.g. "
+            "basic_template.md or report.md.j2 (see --list-templates)"
+        ),
+    )
+    parser.add_argument(
+        "--list-templates",
+        dest="list_templates",
+        action="store_true",
+        help="list the report templates shipped with pytm",
+    )
+    parser.add_argument(
+        "--report-var",
+        dest="report_var",
+        action="append",
+        metavar="KEY=VALUE",
+        help=(
+            "set a report template variable (repeatable), e.g. "
+            "--report-var dfd_image=dfd.png"
         ),
     )
     parser.add_argument("--exclude", help="specify threat IDs to be ignored")
@@ -768,6 +795,30 @@ def get_args():
         help="list all elements which can be part of a threat model",
     )
     parser.add_argument("--json", help="output a JSON file")
+    parser.add_argument(
+        "--thumbnails",
+        metavar="DIR",
+        help=(
+            "write a cropped DFD thumbnail for every element to DIR "
+            "(needs Graphviz; PNG also needs rsvg-convert)"
+        ),
+    )
+    parser.add_argument(
+        "--thumbnail-format",
+        dest="thumbnail_format",
+        choices=["png", "svg"],
+        default="png",
+        help="thumbnail image format (default: png)",
+    )
+    parser.add_argument(
+        "--thumbnail-prefix",
+        dest="thumbnail_prefix",
+        metavar="PREFIX",
+        help=(
+            "path to the thumbnails as seen from the report, e.g. 'thumbnails' "
+            "when the report is written next to DIR (default: DIR)"
+        ),
+    )
     parser.add_argument(
         "--levels",
         type=int,

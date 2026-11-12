@@ -46,7 +46,7 @@ The `tm.py` is an example model. You can run it to generate the report and diagr
 
 ```
 mkdir -p tm
-./tm.py --report docs/basic_template.md | pandoc -f markdown -t html > tm/report.html
+./tm.py --report basic_template.md | pandoc -f markdown -t html > tm/report.html
 ./tm.py --dfd | dot -Tpng -o tm/dfd.png
 ./tm.py --seq | java -Djava.awt.headless=true -jar $PLANTUML_PATH -tpng -pipe > tm/seq.png
 ```
@@ -95,17 +95,27 @@ lower overhead and more convenient alternative to the OCI container approach.
 All available arguments:
 
 ```text
-usage: tm.py [-h] [--debug] [--dfd] [--report REPORT] [--exclude EXCLUDE]
+usage: tm.py [-h] [--debug] [--dfd] [--legend] [--report TEMPLATE]
+             [--list-templates] [--report-var KEY=VALUE] [--exclude EXCLUDE]
              [--seq] [--list] [--colormap] [--describe DESCRIBE]
-             [--list-elements] [--json JSON] [--levels LEVELS [LEVELS ...]]
-             [--stale_days STALE_DAYS]
+             [--list-elements] [--json JSON] [--thumbnails DIR]
+             [--thumbnail-format {png,svg}] [--thumbnail-prefix PREFIX]
+             [--levels LEVELS [LEVELS ...]] [--stale_days STALE_DAYS]
 
 options:
   -h, --help            show this help message and exit
   --debug               print debug messages
   --dfd                 output DFD
-  --report REPORT       output report using the named template file (sample
-                        template file is under docs/basic_template.md)
+  --legend              output a legend of the DFD's shapes (and, with
+                        --colormap, colours) as a separate diagram
+  --report TEMPLATE     output a report using TEMPLATE: a file (relative to
+                        the current directory), or the name of a template
+                        shipped with pytm, e.g. basic_template.md or
+                        report.md.j2 (see --list-templates)
+  --list-templates      list the report templates shipped with pytm
+  --report-var KEY=VALUE
+                        set a report template variable (repeatable), e.g.
+                        --report-var dfd_image=dfd.png
   --exclude EXCLUDE     specify threat IDs to be ignored
   --seq                 output sequential diagram
   --list                list all available threats
@@ -113,6 +123,14 @@ options:
   --describe DESCRIBE   describe the properties available for a given element
   --list-elements       list all elements which can be part of a threat model
   --json JSON           output a JSON file
+  --thumbnails DIR      write a cropped DFD thumbnail for every element to DIR
+                        (needs Graphviz; PNG also needs rsvg-convert)
+  --thumbnail-format {png,svg}
+                        thumbnail image format (default: png)
+  --thumbnail-prefix PREFIX
+                        path to the thumbnails as seen from the report, e.g.
+                        'thumbnails' when the report is written next to DIR
+                        (default: DIR)
   --levels LEVELS [LEVELS ...]
                         Select levels to be drawn in the threat model (int
                         separated by comma).
@@ -151,7 +169,6 @@ Server class attributes:
                             default: True
   inputs                    incoming Dataflows
                             default factory: list
-  is_drawn                  default: False
   levels                    List of levels (0, 1, 2, ...) to be drawn in the model
                             default factory: <lambda>
   maxClassification         Maximum data classification this element can handle
@@ -316,6 +333,8 @@ Generates this diagram:
 
 ![dfd.png](docs/diagrams/dfd.png)
 
+`tm.py --legend` outputs a legend for the DFD as a separate diagram: a sample of each shape the model uses and, with `--colormap`, what each colour means (`tm.py --legend --colormap | dot -Tpng -o legend.png`). The legend is drawn by the same code as the DFD, so it always matches it.
+
 Adding ".levels = [1,2]" attributes to an element will cause it (and its associated Dataflows if both flow endings are in the same DFD level) to render (or not) depending on the command argument "--levels 1 2".
 
 The following command generates a Sequence diagram.
@@ -336,9 +355,14 @@ The diagrams and findings can be included in the template to create a final repo
 
 ```bash
 
-tm.py --report docs/basic_template.md | pandoc -f markdown -t html > report.html
+tm.py --report basic_template.md | pandoc -f markdown -t html > report.html
 
 ```
+
+`--report` takes a template file, or the name of a template that ships with pytm: it looks for the file relative to the current directory first, and otherwise uses the packaged template of that name. `--list-templates` shows the packaged ones (`basic_template.md`, `advanced_template.md`, and the Jinja2 `report.md.j2`). To customize one, copy it next to your model under the same name, and your copy is used instead. `pytm:NAME` always selects the packaged template. Earlier paths such as `docs/basic_template.md` still work.
+
+The packaged templates link `Stylesheet.css` through a `{stylesheet}` variable. It is found the same way, so a `Stylesheet.css` in the current directory is used instead of the packaged one, and `--report-var stylesheet=PATH` sets it directly. The link is a `file://` URI by default; add `--embed-resources` when converting with pandoc (`pandoc report.md -s --embed-resources -o report.html`) to put the styles inside the HTML file.
+
 The templating format used in the report template is very simple:
 
 ```text
@@ -390,6 +414,113 @@ To group findings by elements, use a more advanced, nested loop:
 
 All items inside a loop must be escaped, doubling the braces, so `{item.name}` becomes `{{item.name}}`.
 The example above uses two nested loops, so items in the inner loop must be escaped twice, that's why they're using four braces.
+
+#### Linking between sections
+
+`getAnchor` returns a stable, unique identifier for an element, dataflow, boundary, piece of data, threat or finding, such as `server-web-server`, `dataflow-login` or `threat-inp01`. Elements with the same type and name are numbered in the order they were created (`server-web-server-2`). Use it for pandoc heading IDs and links:
+
+```text
+{assets:repeat:### {{item.name}} {{{{#{{item:call:getAnchor}}}}}}
+
+}
+{dataflows:repeat:* [{{item.name}}](#{{item:call:getAnchor}}) from [{{item.source.name}}](#{{item.source:call:getAnchor}})
+}
+```
+
+Literal braces inside a loop are doubled like any other, so the pandoc heading attribute `{#...}` is written `{{{{#...}}}}` in the loop above.
+
+`getThreatAnchor` returns the anchor of the threat behind a finding, for linking a finding to its threat's details.
+
+#### Built-in report
+
+pytm ships a complete, cross-linked report template (it needs Jinja2: `pip install 'pytm[jinja]'`). Select it with `pytm:report.md.j2`:
+
+```bash
+./tm.py --dfd | dot -Tpng -o report/dfd.png
+./tm.py --seq | java -Djava.awt.headless=true -jar $PLANTUML_PATH -tpng -pipe > report/seq.png
+./tm.py --thumbnails report/thumbnails --thumbnail-prefix thumbnails \
+        --report pytm:report.md.j2 > report/report.md
+cd report && pandoc report.md -s --embed-resources -o report.html && pandoc report.md -o report.pdf
+```
+
+It contains a summary; the dataflow and sequence diagrams; a data dictionary (each piece of data with the elements that handle it, the dataflows that carry it and the threats against them); sections for actors, dataflows, assets and trust boundaries (details, controls in place, attached dataflows, data, findings and thumbnails); every finding with how to resolve it (the specific values to change, e.g. "set `controls.sanitizesInput` to `True`", with alternatives when there are several ways; alternatives that only add safeguards come first, and changes that merely describe the system differently, such as `isResponse` or `inScope`, are marked); the model's assumptions (each with the findings it suppressed, flagging excluded threat IDs that suppressed nothing or aren't in the threat library) and the threats left out with `--exclude`; each element's own assumptions and the threats suppressed on it; every suppressed finding with the assumption behind it, so reviewers can check that each assumption still holds; and a threat library limited to the threats that apply to the model (suppressed ones included), with each condition laid out over short lines and one reference per line. Every element, finding, assumption and threat links to the others.
+
+The diagrams default to `dfd.png` and `seq.png` next to the report; change them with `--report-var dfd_image=PATH` and `--report-var seq_image=PATH`, or set one to an empty value to leave it out. A legend table follows the DFD; if `dfd.png` was rendered with `--colormap`, add `--report-var dfd_colormap=yes` to explain its colours too. When thumbnails are rendered (`--thumbnails`), the same step draws each legend shape and colour as a small image, and the legend table shows those instead of their names. The report starts with a small pandoc metadata block that makes links visible in PDF output (`colorlinks`) and sets the HTML page title; leave it out with `--report-var pandoc_metadata=no`. The links use pandoc's heading IDs (`{#...}`), so they work in pandoc's HTML and PDF output but not in Markdown previews (such as GitHub's) that don't support heading attributes.
+
+The report is built from sub-templates (`pytm/templates/sections/*.md.j2`) and shared macros (`pytm/templates/_macros.md.j2`). To customize one part, copy `report.md.j2` next to your model, and add a file with the same name as the section you want to change (for example `sections/threats.md.j2`): templates next to your template are used before the built-in ones.
+
+#### Jinja2 templates
+
+Templates whose name ends in `.j2` or `.jinja` (for example `report.md.j2`) are rendered with [Jinja2](https://jinja.palletsprojects.com/) instead. Install it with `pip install 'pytm[jinja]'`. Jinja2 templates get the same variables (`tm`, `elements`, `assets`, `actors`, `boundaries`, `dataflows`, `data`, `threats`, `findings`) plus:
+
+- functions: `anchor(obj)`, `heading_id(obj)`, `link(obj, text=None)`, `threat_anchor(finding)`, `thumbnail(obj)`
+- filters: `md_escape`, `slugify`, `anchor`, and every helper above, e.g. `{{ asset | getFindingCount }}`
+
+```jinja
+{% for asset in assets %}
+## {{ asset.name | md_escape }} {{ heading_id(asset) }}
+
+{% if thumbnail(asset) %}![{{ asset.name | md_escape }}]({{ thumbnail(asset) }}){% endif %}
+
+Findings: {{ asset | getFindingCount }}
+{% endfor %}
+```
+
+Pandoc's heading ID syntax `{#...}` starts a comment in Jinja2, so use `heading_id(obj)` (or pandoc's spaced form `{ #... }`). `{% include %}` finds templates next to the main template, and using an undefined variable is an error rather than empty output.
+
+#### Cross-references
+
+These helpers link the parts of a model together. In format-string templates call them with `:call:` (for example `{{item:call:getFlows:...}}`); in Jinja2 templates use the function names in brackets.
+
+| Helper | Returns |
+|---|---|
+| `getFlows`, `getInboundFlows`, `getOutboundFlows` (`flows_of(el, direction=None)`) | dataflows attached to an element |
+| `getData` (`data_of(el)`) | data an element produces or consumes, or a dataflow carries |
+| `getDataHandlers` (`handlers_of(data)`) | elements that send, receive, store or process the data |
+| `getDataCarriers` (`carriers_of(data)`) | dataflows that carry the data |
+| `getDataFindings` (`data_findings_of(data)`) | findings against the dataflows that carry the data |
+| `getBoundaryMembers` (`members_of(boundary)`) | elements and boundaries directly inside a boundary |
+| `getElementFindings`, `getElementThreats` (`findings_of(el)`, `threats_of(el)`) | findings against an element, and the distinct threats behind them |
+| `getFiredThreats` (`fired_threats()`) | every threat with at least one finding, for a threat library |
+| `getThreatFindings` (`findings_for(threat)`) | the findings a threat produced |
+| (Jinja2 only) `assumptions_of(el=None)` | assumptions about an element, or about the whole model: each with `name`, `description`, `exclude`, `anchor`, the findings it `suppressed`, and the excluded threat IDs that suppressed nothing (`unused`) or aren't in the threat library (`unknown`) |
+| (Jinja2 only) `suppressed_of(el=None)`, `suppressed_for(threat)`, `data_suppressed_of(data)`, `assumption_of(finding)` | findings an assumption suppressed (all, on an element, of a threat, or on the dataflows that carry the data), and the assumption that suppressed one |
+| (Jinja2 only) `reported_threats()` | threats with a finding or a suppressed finding, for a threat library |
+| (Jinja2 only) `excluded_threats()` | threats left out with `--exclude`, as `(id, threat)` pairs (`threat` is `None` for an unknown id) |
+| `getFindingRemedies` (`remedies_of(finding)`) | how to resolve a finding: alternative sets of changes, each with `attribute`, `required`, `current`, `subject` and a readable `instruction`; making every change in any one set makes the threat stop applying |
+
+For example, how to resolve each finding:
+
+```jinja
+{% for finding in findings %}
+
+### {{ finding.threat_id }} on {{ finding.target }}
+
+{% for changes in remedies_of(finding) %}
+{{ loop.index }}. {% for c in changes %}{{ c.instruction }}{{ " and " if not loop.last }}{% endfor %}
+
+{% endfor %}
+{% endfor %}
+```
+
+#### Element thumbnails
+
+`--thumbnails DIR` writes a small image for every element, dataflow, boundary and piece of data: the DFD with that object highlighted in blue, cropped to it and the elements directly connected to it. Unrelated elements inside the crop are faded. Files are named after the object's anchor (`DIR/server-web-server.png`). Thumbnails follow `--colormap` and `--levels`, and need Graphviz's `dot`; PNG (the default) also needs `rsvg-convert` (`librsvg2-bin` on Debian/Ubuntu). Use `--thumbnail-format svg` for SVG.
+
+In a template, `getThumbnailMarkdown` returns a Markdown image of an element's thumbnail (or nothing, if it has none) and `getThumbnail` returns just the link. `--thumbnail-prefix` sets how the report refers to `DIR`, so links work when the report is written somewhere else:
+
+```bash
+./tm.py --thumbnails report/thumbnails --thumbnail-prefix thumbnails \
+        --report basic_template.md > report/report.md
+```
+
+```text
+{assets:repeat:### {{item.name}} {{{{#{{item:call:getAnchor}}}}}}
+
+{{item:call:getThumbnailMarkdown}}
+
+}
+```
 
 ### Overrides
 

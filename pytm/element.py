@@ -6,11 +6,13 @@ import uuid as uuid_module
 from hashlib import sha224
 from html import escape as html_escape
 from textwrap import wrap
-from typing import Any, List, Optional, Set, TYPE_CHECKING
+from typing import Annotated, Any, List, Optional, Set, TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
+from .roles import Role
 from .base import Assumption, Controls, set_default
+from .condition_methods import condition_method, opaque_condition_method
 from .enums import Classification, TLSVersion
 
 if TYPE_CHECKING:
@@ -66,55 +68,58 @@ class Element(BaseModel):
         use_attribute_docstrings=True,
     )
 
-    name: str = Field(description="Name of the element")
-    description: str = Field(default="", description="Description of the element")
-    inBoundary: Optional["Boundary"] = Field(
+    name: Annotated[str, Role.BOOKKEEPING] = Field(description="Name of the element")
+    description: Annotated[str, Role.BOOKKEEPING] = Field(
+        default="", description="Description of the element"
+    )
+    inBoundary: Annotated[Optional["Boundary"], Role.DESCRIPTIVE] = Field(
         default=None,
         description="Trust boundary this element exists in",
     )
-    inScope: bool = Field(
+    inScope: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=True, description="Is the element in scope of the threat model"
     )
-    maxClassification: Classification = Field(
+    maxClassification: Annotated[Classification, Role.DESCRIPTIVE] = Field(
         default=Classification.UNKNOWN,
         description="Maximum data classification this element can handle",
     )
-    minTLSVersion: TLSVersion = Field(
+    minTLSVersion: Annotated[TLSVersion, Role.SAFEGUARD] = Field(
         default=TLSVersion.NONE,
         description="Minimum TLS version required",
     )
-    findings: List["Finding"] = Field(
+    findings: Annotated[List["Finding"], Role.BOOKKEEPING] = Field(
         default_factory=list,
         description="Threats that apply to this element",
     )
-    overrides: List["Finding"] = Field(
+    overrides: Annotated[List["Finding"], Role.BOOKKEEPING] = Field(
         default_factory=list,
         description="Overrides to findings, allowing to set a custom response, CVSS score or override other attributes",
     )
-    assumptions: List[Assumption] = Field(
+    assumptions: Annotated[List[Assumption], Role.BOOKKEEPING] = Field(
         default_factory=list,
         description="Assumptions about the element. These optionally allow to exclude threats with the given SIDs",
     )
-    levels: Set[int] = Field(
+    levels: Annotated[Set[int], Role.BOOKKEEPING] = Field(
         default_factory=lambda: {0},
         description="List of levels (0, 1, 2, ...) to be drawn in the model",
     )
-    sourceFiles: List[str] = Field(
+    sourceFiles: Annotated[List[str], Role.BOOKKEEPING] = Field(
         default_factory=list,
         description="Location of the source code that describes this element relative to the directory of the model script",
     )
-    controls: Controls = Field(
+    controls: Annotated[Controls, Role.BOOKKEEPING] = Field(
         default_factory=Controls, description="Security controls for this element"
     )
-    severity: int = Field(
+    severity: Annotated[int, Role.BOOKKEEPING] = Field(
         default=0, description="Severity level of threats affecting this element"
     )
 
     # Internal attributes
-    uuid: uuid_module.UUID = Field(
+    uuid: Annotated[uuid_module.UUID, Role.BOOKKEEPING] = Field(
         default_factory=lambda: uuid_module.UUID(int=random.getrandbits(128))
     )
-    is_drawn: bool = Field(default=False, exclude=True)
+    # Link anchor, reserved when the element is created (see pytm.anchors).
+    _anchor: Optional[str] = PrivateAttr(default=None)
 
     _WRITE_ONCE_FIELDS = {"name"}
 
@@ -166,14 +171,32 @@ class Element(BaseModel):
         self._register_with_tm()
 
     def _register_with_tm(self) -> None:
-        """Register this element with the TM class."""
+        """Register this element with the TM class and reserve its anchor."""
         try:
+            from .anchors import register_anchor
             from .tm import TM
 
             TM._elements.append(self)
+            self._anchor = register_anchor(self._anchor_base())
         except ImportError:
             # TM might not be available yet during initial setup
             pass
+
+    def _anchor_base(self) -> str:
+        """Anchor before de-duplication: ``<type>-<name>``."""
+        from .anchors import slugify, type_prefix
+
+        return f"{type_prefix(self)}-{slugify(self.name)}"
+
+    @property
+    def anchor(self) -> str:
+        """Unique link anchor in the model, e.g. ``server-web-server``."""
+        return self._anchor or self._anchor_base()
+
+    def display_label(self) -> str:
+        """Name to show in reports, with a stand-in for unnamed elements."""
+        name = str(self.name or "").strip()
+        return name or f"(unnamed {type(self).__name__})"
 
     def __repr__(self) -> str:
         return (
@@ -200,7 +223,7 @@ class Element(BaseModel):
     def _dfd_template(self) -> str:
         """Template for DFD representation."""
         return """{uniq_name} [
-    shape = {shape};
+{id}    shape = {shape};
     color = {color};
     fontcolor = black;
     label = "{label}";
@@ -210,7 +233,6 @@ class Element(BaseModel):
 
     def dfd(self, **kwargs: Any) -> str:
         """Generate DFD representation of this element."""
-        self.is_drawn = True
 
         levels = kwargs.get("levels")
         if levels and not levels & self.levels:
@@ -222,15 +244,29 @@ class Element(BaseModel):
 
         return self._dfd_template().format(
             uniq_name=self._uniq_name(),
+            id=self._dfd_id(**kwargs),
             label=self._label(),
             color=color,
             shape=self._shape(),
         )
 
+    def _dfd_id(self, indent: str = "    ", **kwargs: Any) -> str:
+        """Get the DOT ``id`` attribute line, or "" unless ``ids=True``.
+
+        The id is the element's :func:`pytm.anchors.anchor`, so Graphviz's
+        SVG and JSON output can be matched back to model elements.
+        """
+        if not kwargs.get("ids", False):
+            return ""
+        from .anchors import anchor
+
+        return f'{indent}id = "{anchor(self)}";\n'
+
     def _color(self) -> str:
         """Get the color for this element."""
         return "black"
 
+    @opaque_condition_method
     def oneOf(self, *elements: Any) -> bool:
         """Return True if the element matches any provided elements or classes."""
         for element in elements:
@@ -241,6 +277,7 @@ class Element(BaseModel):
                 return True
         return False
 
+    @opaque_condition_method
     def crosses(self, *boundaries: Any) -> bool:
         """Return True if the flow crosses any of the provided boundaries."""
         if hasattr(self, "source") and hasattr(self, "sink"):
@@ -266,18 +303,21 @@ class Element(BaseModel):
                     return True
         return False
 
+    @opaque_condition_method
     def enters(self, *boundaries: Any) -> bool:
         """Return True if the flow enters any of the provided boundaries."""
         if hasattr(self, "source") and hasattr(self, "sink"):
             return self.source.inBoundary is None and self.sink.inside(*boundaries)
         return False
 
+    @opaque_condition_method
     def exits(self, *boundaries: Any) -> bool:
         """Return True if the flow exits any of the provided boundaries."""
         if hasattr(self, "source") and hasattr(self, "sink"):
             return self.source.inside(*boundaries) and self.sink.inBoundary is None
         return False
 
+    @opaque_condition_method
     def inside(self, *boundaries: Any) -> bool:
         """Return True if the element resides inside any of the provided boundaries."""
         for boundary in boundaries:
@@ -322,9 +362,9 @@ class Element(BaseModel):
         """Return a dictionary of all attribute values."""
         return self.model_dump()
 
+    @condition_method("any(f.tlsVersion < self.minTLSVersion for f in flows)")
     def checkTLSVersion(self, flows: List["Dataflow"]) -> bool:
         """Check if any flows have insufficient TLS version."""
-        return any(f.tlsVersion < self.minTLSVersion for f in flows)
 
     def _set_severity(self, sev: Any) -> None:
         """Set the severity based on numeric or textual value."""

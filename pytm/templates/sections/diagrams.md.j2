@@ -1,0 +1,15 @@
+{# Diagrams are inline images (the trailing "\ "), not figures: LaTeX floats
+   figures that don't fit, which moved them pages away from their heading. #}
+{% if dfd_image %}
+## Dataflow Diagram { #section-dataflow-diagram }
+
+![Dataflow diagram]({{ dfd_image }})\ 
+
+{% include "sections/legend.md.j2" %}
+{% endif %}
+{% if seq_image %}
+## Sequence Diagram { #section-sequence-diagram }
+
+![Sequence diagram]({{ seq_image }})\ 
+
+{% endif %}

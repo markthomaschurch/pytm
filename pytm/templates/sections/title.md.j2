@@ -1,0 +1,52 @@
+# {{ tm.name | md_escape }} { #section-title }
+
+{% if tm.description %}
+{{ tm.description }}
+
+{% endif %}
+{% import "_macros.md.j2" as m %}
+{% set model_assumptions = assumptions_of() %}
+{% set left_out = excluded_threats() %}
+{% if model_assumptions or left_out %}
+## Assumptions { #section-assumptions }
+
+{% if model_assumptions %}
+Assumptions about the whole model. Assumptions about one element are listed
+in that element's section.
+
+{{ m.assumption_items(model_assumptions) }}
+
+{% endif %}
+{% if left_out %}
+### Threats left out of the analysis { #section-excluded-threats }
+
+These threats were not checked for any element (`--exclude`):
+
+{% for sid, t in left_out %}
+- {{ sid }}{% if t %}: {{ t.description }}{% else %} (not in the threat library){% endif %}
+
+{% endfor %}
+
+{% endif %}
+{% endif %}
+## Summary { #section-summary }
+
+| | Count |
+|---|---|
+| Actors | {{ actors | length }} |
+| Assets | {{ assets | length }} |
+| Dataflows | {{ dataflows | length }} |
+| Data | {{ data | length }} |
+| Findings | {{ findings | length }} |
+{% for severity in ["Very High", "High", "Medium", "Low", "Very Low", "Info"] %}
+{% set count = findings | selectattr("severity", "equalto", severity) | list | length %}
+{% if count %}
+| &nbsp;&nbsp;{{ severity }} | {{ count }} |
+{% endif %}
+{% endfor %}
+{% set suppressed = suppressed_of() %}
+{% if suppressed %}
+| Suppressed findings | {{ suppressed | length }} |
+{% endif %}
+| Threats that fired | {{ fired_threats() | length }} |
+

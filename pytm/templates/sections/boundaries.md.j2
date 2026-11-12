@@ -1,0 +1,25 @@
+{% import "_macros.md.j2" as m %}
+{% if boundaries %}
+## Trust Boundaries { #section-boundaries }
+
+{% for b in boundaries %}
+### {{ b | label | md_escape }} {{ heading_id(b) }}
+
+{% if b.description %}
+{{ b.description }}
+
+{% endif %}
+{% if thumbnail(b) %}
+{{ m.thumbnail_image(b) }}
+
+{% endif %}
+{{ m.link_list("Inside", members_of(b)) }}
+
+{% if b.inBoundary %}
+**Part of:** {{ link(b.inBoundary) }}
+
+{% endif %}
+{{ m.assumptions_and_suppressed(b) }}
+
+{% endfor %}
+{% endif %}

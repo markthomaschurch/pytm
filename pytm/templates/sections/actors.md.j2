@@ -1,0 +1,9 @@
+{% import "_macros.md.j2" as m %}
+## Actors { #section-actors }
+
+{% for a in actors %}
+{{ m.element_section(a) }}
+{% else %}
+No actors are defined in this model.
+
+{% endfor %}

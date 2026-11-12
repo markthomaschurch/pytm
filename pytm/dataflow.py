@@ -1,9 +1,11 @@
 """Dataflow model - represents data flows between elements."""
 
-from typing import Optional
+from typing import Annotated, Optional
 from pydantic import Field, field_validator, model_validator
 
+from .roles import Role
 from .element import Element, sev_to_color
+from .condition_methods import condition_method
 from .enums import Classification, TLSVersion
 from .base import DataSet
 
@@ -11,36 +13,50 @@ from .base import DataSet
 class Dataflow(Element):
     """A data flow from a source to a sink."""
 
-    source: Element = Field(description="Source element of the data flow")
-    sink: Element = Field(description="Sink element of the data flow")
-    isResponse: bool = Field(
+    source: Annotated[Element, Role.DESCRIPTIVE] = Field(
+        description="Source element of the data flow"
+    )
+    sink: Annotated[Element, Role.DESCRIPTIVE] = Field(
+        description="Sink element of the data flow"
+    )
+    isResponse: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Is a response to another data flow"
     )
-    response: Optional["Dataflow"] = Field(
+    response: Annotated[Optional["Dataflow"], Role.DESCRIPTIVE] = Field(
         default=None, description="Another data flow that is a response to this one"
     )
-    responseTo: Optional["Dataflow"] = Field(
+    responseTo: Annotated[Optional["Dataflow"], Role.DESCRIPTIVE] = Field(
         default=None, description="Is a response to this data flow"
     )
-    srcPort: int = Field(default=-1, description="Source TCP port")
-    dstPort: int = Field(default=-1, description="Destination TCP port")
-    tlsVersion: TLSVersion = Field(
+    srcPort: Annotated[int, Role.DESCRIPTIVE] = Field(
+        default=-1, description="Source TCP port"
+    )
+    dstPort: Annotated[int, Role.DESCRIPTIVE] = Field(
+        default=-1, description="Destination TCP port"
+    )
+    tlsVersion: Annotated[TLSVersion, Role.SAFEGUARD] = Field(
         default=TLSVersion.NONE, description="TLS version used"
     )
-    protocol: str = Field(default="", description="Protocol used in this data flow")
-    data: DataSet = Field(
+    protocol: Annotated[str, Role.SAFEGUARD] = Field(
+        default="", description="Protocol used in this data flow"
+    )
+    data: Annotated[DataSet, Role.DESCRIPTIVE] = Field(
         default_factory=DataSet,
         description="pytm.Data object(s) in incoming data flows",
     )
-    order: int = Field(
+    order: Annotated[int, Role.BOOKKEEPING] = Field(
         default=-1, description="Number of this data flow in the threat model"
     )
-    implementsCommunicationProtocol: bool = Field(
+    implementsCommunicationProtocol: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this flow implement a communication protocol"
     )
-    note: str = Field(default="", description="Note about this data flow")
-    usesVPN: bool = Field(default=False, description="Does this flow use VPN")
-    usesSessionTokens: bool = Field(
+    note: Annotated[str, Role.BOOKKEEPING] = Field(
+        default="", description="Note about this data flow"
+    )
+    usesVPN: Annotated[bool, Role.SAFEGUARD] = Field(
+        default=False, description="Does this flow use VPN"
+    )
+    usesSessionTokens: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this flow use session tokens"
     )
 
@@ -161,6 +177,22 @@ class Dataflow(Element):
         except ImportError:
             pass
 
+    def _anchor_base(self) -> str:
+        """Unnamed dataflows are named after their ends: ``<source>-to-<sink>``."""
+        from .anchors import slugify, type_prefix
+
+        name = slugify(self.name, fallback="") or slugify(
+            f"{self.source.name} to {self.sink.name}"
+        )
+        return f"{type_prefix(self)}-{name}"
+
+    def display_label(self) -> str:
+        """Name to show in reports; unnamed dataflows show ``<source> to <sink>``."""
+        name = str(self.name or "").strip()
+        if name:
+            return name
+        return f"{self.source.display_label()} to {self.sink.display_label()}"
+
     def display_name(self) -> str:
         """Get display name for this dataflow."""
         if self.order == -1:
@@ -170,7 +202,7 @@ class Dataflow(Element):
     def _dfd_template(self) -> str:
         """Template for DFD representation."""
         return """{source} -> {sink} [
-    color = {color};
+{id}    color = {color};
     fontcolor = {color};
     dir = {direction};
     label = "{label}";
@@ -179,7 +211,6 @@ class Dataflow(Element):
 
     def dfd(self, mergeResponses: bool = False, **kwargs) -> str:
         """Generate DFD representation of this dataflow."""
-        self.is_drawn = True
 
         levels = kwargs.get("levels", None)
         if (
@@ -203,16 +234,16 @@ class Dataflow(Element):
         return self._dfd_template().format(
             source=self.source._uniq_name(),
             sink=self.sink._uniq_name(),
+            id=self._dfd_id(**kwargs),
             direction=direction,
             label=label,
             color=color,
         )
 
+    @condition_method(
+        "any(d.classification > self.source.maxClassification"
+        " or d.classification > self.sink.maxClassification"
+        " or d.classification > self.maxClassification for d in self.data)"
+    )
     def hasDataLeaks(self) -> bool:
         """Check if this dataflow has data leaks."""
-        return any(
-            d.classification > self.source.maxClassification
-            or d.classification > self.sink.maxClassification
-            or d.classification > self.maxClassification
-            for d in self.data
-        )

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, List, Set, Union, TYPE_CHECKING
+from typing import ClassVar, Any, Iterable, List, Set, Union, TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from .roles import Role
 
 if TYPE_CHECKING:
     from .element import Element
@@ -106,6 +108,8 @@ class Controls(BaseModel):
     """Controls implemented by/on an Element."""
 
     model_config = ConfigDict(extra="allow", validate_assignment=True)
+    # Every control is a security measure (see pytm.roles).
+    pytm_default_role: ClassVar[Role] = Role.SAFEGUARD
 
     authenticatesDestination: bool = Field(
         default=False,

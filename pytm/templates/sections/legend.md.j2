@@ -1,0 +1,27 @@
+{# Legend for the dataflow diagram, from pytm.legend: the shapes the model
+   uses and, when the DFD was rendered with --colormap, what the colours
+   mean. With --thumbnails, each shape and colour is shown as a small image
+   drawn by Graphviz exactly as in the DFD; otherwise it is named. #}
+{% macro item(key, text) -%}
+{% if legend_image(key) %}![{{ text }}]({{ legend_image(key) }}){ height=0.2in }{% else %}{{ text }}{% endif %}
+{%- endmacro %}
+**Legend:**
+
+| Shape | Represents |
+|----|-----------|
+{% for entry in legend_entries() %}
+| {{ item(entry.key, entry.shape) }} | {{ entry.types | join(", ") }} |
+{% endfor %}
+| {{ item("legend-boundary", "dashed red outline") }} | Trust boundary |
+| {{ item("legend-dataflow", "arrow") }} | Dataflow |
+
+{% if dfd_colormap %}
+Elements and dataflows are coloured by the highest severity of the threats found against them:
+
+| Colour | Severity |
+|----|-----------|
+{% for entry in severity_entries() %}
+| {{ item(entry.key, entry.colour_name) }} | {{ entry.severities | join(", ") }} |
+{% endfor %}
+
+{% endif %}

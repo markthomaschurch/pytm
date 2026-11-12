@@ -1,8 +1,9 @@
 """Datastore model - represents data storage elements in the threat model."""
 
-from typing import TYPE_CHECKING
+from typing import Annotated, TYPE_CHECKING
 from pydantic import Field
 
+from .roles import Role
 from .asset import Asset
 from .enums import DatastoreType
 
@@ -33,23 +34,29 @@ class Datastore(Asset):
         type (DatastoreType): The type of Datastore
     """
 
-    onRDS: bool = Field(default=False, description="Is this datastore on RDS?")
-    storesLogData: bool = Field(
+    onRDS: Annotated[bool, Role.DESCRIPTIVE] = Field(
+        default=False, description="Is this datastore on RDS?"
+    )
+    storesLogData: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this datastore store log data?"
     )
-    storesPII: bool = Field(
+    storesPII: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False,
         description="Personally Identifiable Information is any information relating to an identifiable person",
     )
-    storesSensitiveData: bool = Field(
+    storesSensitiveData: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False, description="Does this datastore store sensitive data?"
     )
-    isSQL: bool = Field(default=True, description="Is this a SQL datastore?")
-    isShared: bool = Field(default=False, description="Is this datastore shared?")
-    hasWriteAccess: bool = Field(
+    isSQL: Annotated[bool, Role.DESCRIPTIVE] = Field(
+        default=True, description="Is this a SQL datastore?"
+    )
+    isShared: Annotated[bool, Role.DESCRIPTIVE] = Field(
+        default=False, description="Is this datastore shared?"
+    )
+    hasWriteAccess: Annotated[bool, Role.SAFEGUARD] = Field(
         default=False, description="Does this datastore have write access?"
     )
-    type: DatastoreType = Field(
+    type: Annotated[DatastoreType, Role.DESCRIPTIVE] = Field(
         default=DatastoreType.UNKNOWN, description="The type of Datastore"
     )
 

@@ -1,8 +1,9 @@
 """Actor model - represents entities that initiate actions."""
 
-from typing import TYPE_CHECKING, List
+from typing import Annotated, TYPE_CHECKING, List
 from pydantic import Field, field_validator
 
+from .roles import Role
 from .element import Element
 from .base import DataSet
 
@@ -25,23 +26,23 @@ class Actor(Element):
         isAdmin (bool): Indicates whether the actor has administrative privileges
     """
 
-    port: int = Field(
+    port: Annotated[int, Role.DESCRIPTIVE] = Field(
         default=-1, description="Default TCP port for outgoing data flows"
     )
-    protocol: str = Field(
+    protocol: Annotated[str, Role.SAFEGUARD] = Field(
         default="", description="Default network protocol for outgoing data flows"
     )
-    data: DataSet = Field(
+    data: Annotated[DataSet, Role.DESCRIPTIVE] = Field(
         default_factory=DataSet,
         description="pytm.Data object(s) in outgoing data flows",
     )
-    inputs: List["Dataflow"] = Field(
+    inputs: Annotated[List["Dataflow"], Role.BOOKKEEPING] = Field(
         default_factory=list, description="Incoming Dataflows"
     )
-    outputs: List["Dataflow"] = Field(
+    outputs: Annotated[List["Dataflow"], Role.BOOKKEEPING] = Field(
         default_factory=list, description="Outgoing Dataflows"
     )
-    isAdmin: bool = Field(
+    isAdmin: Annotated[bool, Role.DESCRIPTIVE] = Field(
         default=False,
         description="Indicates whether the actor has administrative privileges",
     )

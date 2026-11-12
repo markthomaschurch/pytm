@@ -1,0 +1,33 @@
+{% import "_macros.md.j2" as m %}
+{% set suppressed = suppressed_of() %}
+{% if suppressed %}
+## Suppressed Findings { #section-suppressed-findings }
+
+These threats apply, but an assumption excludes them, so they are not
+counted as findings. Each one holds only as long as its assumption does.
+
+| Finding | Threat | Target | Assumption |
+|--|---------|-----|-----|
+{% for f in suppressed %}
+{% set a = assumption_of(f) %}
+| [S{{ f.id }}](#{{ anchor(f) }}) | [{{ f.threat_id }}](#{{ threat_anchor(f) }}) {{ f.description | replace("\n", " ") }} | {{ link(f.element) }} | {{ link(a) if a else "" }} |
+{% endfor %}
+
+{% for f in suppressed %}
+{% set a = assumption_of(f) %}
+### Suppressed finding {{ f.id }}: {{ f.description }} {{ "{#" ~ anchor(f) ~ "}" }}
+
+{{ m.property_table([
+    ("Target", link(f.element)),
+    ("Threat", "[" ~ f.threat_id ~ "](#" ~ threat_anchor(f) ~ ")"),
+    ("Severity", f.severity),
+    ("Suppressed by", link(a) if a else ""),
+    ("Assumption about", (link(a.owner) if a.owner else "the whole model") if a else ""),
+]) }}
+
+{% if a and a.description %}
+**Assumption:** {{ a.description | md_escape }}
+
+{% endif %}
+{% endfor %}
+{% endif %}

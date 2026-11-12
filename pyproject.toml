@@ -25,6 +25,9 @@ dependencies = [
     "pydantic>=2.10.0,<3.0.0",
 ]
 
+[project.optional-dependencies]
+jinja = ["jinja2>=3.1,<4"]
+
 [project.scripts]
 pytm = "pytm.cli:main"
 
@@ -41,6 +44,7 @@ dev = [
     "black>=25.9,<27.0",
     "pdoc3>=0.11.6,<0.12.0",
     "ruff>=0.15.11,<0.16.0",
+    "jinja2>=3.1,<4",
 ]
 
 [tool.ruff]

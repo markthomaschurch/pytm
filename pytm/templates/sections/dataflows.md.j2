@@ -1,0 +1,18 @@
+{% import "_macros.md.j2" as m %}
+## Dataflows { #section-dataflows }
+
+{% for f in dataflows %}
+{{ m.element_section(f, [
+    ("Source", link(f.source)),
+    ("Destination", link(f.sink)),
+    ("Order", f.order if f.order != -1 else ""),
+    ("Protocol", f.protocol | md_escape),
+    ("Destination port", f.dstPort if f.dstPort not in (none, -1) else ""),
+    ("TLS version", m.value(f.tlsVersion)),
+    ("Response to", link(f.responseTo) if f.responseTo else ""),
+    ("Note", f.note | md_escape),
+], show_flows=false) }}
+{% else %}
+No dataflows are defined in this model.
+
+{% endfor %}

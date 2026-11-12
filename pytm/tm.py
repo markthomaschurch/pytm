@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import combinations
 from textwrap import indent
-from typing import ClassVar, Dict, Iterable, List, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, Iterable, List, TYPE_CHECKING
 from html import escape as html_escape
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -74,6 +74,16 @@ class TMState:
     boundaries: List["Boundary"] = field(default_factory=list)
     data: List["Data"] = field(default_factory=list)
     threats_excluded: List[str] = field(default_factory=list)
+    # link anchors already given to elements and data (see pytm.anchors)
+    anchors: set[str] = field(default_factory=set)
+    # dataflows hidden by check() as duplicates (onDuplicates=Action.IGNORE)
+    ignored_duplicates: List["Dataflow"] = field(default_factory=list)
+    # anchor -> link to the element's thumbnail, filled by render_thumbnails()
+    thumbnails: dict[str, str] = field(default_factory=dict)
+    # legend item key -> link to its image, filled by render_legend_images()
+    legend_images: dict[str, str] = field(default_factory=dict)
+    # relations of the report being rendered (see pytm.relations.current())
+    report_relations: Any = None
 
 
 class _StateAttribute:
@@ -148,6 +158,8 @@ class TM(BaseModel, metaclass=TMModelMetaclass):
     _boundaries: ClassVar[_StateAttribute] = _StateAttribute("boundaries")
     _data: ClassVar[_StateAttribute] = _StateAttribute("data")
     _threatsExcluded: ClassVar[_StateAttribute] = _StateAttribute("threats_excluded")
+    _thumbnails: ClassVar[_StateAttribute] = _StateAttribute("thumbnails")
+    _legend_images: ClassVar[_StateAttribute] = _StateAttribute("legend_images")
 
     @classmethod
     def _get_state(cls) -> TMState:
@@ -475,18 +487,37 @@ a brief description of the system being modeled."""
         if getattr(result, "seq", False):
             print(self.seq())
 
+        colormap = getattr(result, "colormap", False)
         if getattr(result, "dfd", False):
-            if getattr(result, "colormap", False):
+            if colormap:
                 self.resolve()
             levels = set(getattr(result, "levels", []) or [])
-            print(self.dfd(colormap=getattr(result, "colormap", False), levels=levels))
+            print(self.dfd(colormap=colormap, levels=levels))
+        if getattr(result, "legend", False):
+            print(self.legend(colormap=colormap))
 
         needs_resolution = any(
-            getattr(result, attr, None) for attr in ("report", "json", "stale_days")
+            getattr(result, attr, None)
+            for attr in ("report", "json", "stale_days", "thumbnails")
         )
 
         if needs_resolution:
             self.resolve()
+
+        if getattr(result, "thumbnails", None):
+            from .thumbnails import ThumbnailError, render_thumbnails
+
+            try:
+                render_thumbnails(
+                    self,
+                    result.thumbnails,
+                    fmt=getattr(result, "thumbnail_format", "png"),
+                    link_prefix=getattr(result, "thumbnail_prefix", None),
+                    colormap=getattr(result, "colormap", False),
+                    levels=set(getattr(result, "levels", []) or []),
+                )
+            except (ThumbnailError, OSError) as exc:
+                raise UIError(exc, f"while writing thumbnails to {result.thumbnails}")
 
         if getattr(result, "json", None):
             try:
@@ -498,7 +529,16 @@ a brief description of the system being modeled."""
                 )
 
         if getattr(result, "report", None):
-            print(self.report(result.report))
+            variables = {}
+            for item in getattr(result, "report_var", None) or []:
+                key, sep, value = item.partition("=")
+                if not sep or not key.strip():
+                    raise UIError(
+                        ValueError(f"expected KEY=VALUE, got {item!r}"),
+                        "while reading --report-var",
+                    )
+                variables[key.strip()] = value
+            print(self.report(result.report, variables))
 
         describe_targets = getattr(result, "describe", None)
         if describe_targets:
@@ -507,6 +547,12 @@ a brief description of the system being modeled."""
 
         if getattr(result, "list_elements", False):
             pytm_module._list_elements()
+
+        if getattr(result, "list_templates", False):
+            from .report_templates import packaged_templates
+
+            for name in packaged_templates():
+                print(name)
 
         if getattr(result, "list", False):
             for threat in TM._threats:
@@ -581,8 +627,12 @@ a brief description of the system being modeled."""
         )
 
     def dfd(self, **kwargs):
-        """Generate Data Flow Diagram."""
-        from collections import defaultdict
+        """Generate Data Flow Diagram.
+
+        Drawing has no side effects on the model, so ``dfd()`` can be called
+        any number of times (for example with different ``levels`` or
+        ``colormap``) and always draws the whole model.
+        """
         from .boundary import Boundary
 
         if "levels" in kwargs:
@@ -591,46 +641,58 @@ a brief description of the system being modeled."""
                 kwargs["levels"] = [levels]
             kwargs["levels"] = set(kwargs["levels"])
 
-        edges = []
-        # Since boundaries can be nested sort them by level and start from top
-        parents = set(b.inBoundary for b in TM._boundaries if b.inBoundary)
+        merge = bool(getattr(self, "mergeResponses", False))
+        kwargs["mergeResponses"] = merge
+        kwargs["skip"] = self._hidden_flows(merge)
 
-        # Collect boundary levels
-        boundary_levels = defaultdict(set)
-        max_level = 0
-        for b in TM._boundaries:
-            if b in parents:
-                continue
-            boundary_levels[0].add(b)
-            for i, p in enumerate(getattr(b, "parents", lambda: [])(), 1):
-                boundary_levels[i].add(p)
-                if i > max_level:
-                    max_level = i
+        # Draw the boundary tree from its roots: each boundary draws its own
+        # members, nested boundaries included, so everything is drawn once.
+        # Roots are ordered by the depth of their nesting (deepest first),
+        # then by name.
+        roots = [b for b in TM._boundaries if b.inBoundary is None]
+        roots.sort(key=lambda b: b.name)
+        roots.sort(key=self._boundary_height, reverse=True)
+        edges = [b.dfd(**kwargs) for b in roots]
 
-        # Draw boundaries from highest level to lowest
-        for i in range(max_level, -1, -1):
-            for b in sorted(boundary_levels[i], key=lambda b: b.name):
-                edges.append(b.dfd(**kwargs))
-
-        # Handle response merging
-        if getattr(self, "mergeResponses", False):
-            for e in TM._flows:
-                if getattr(e, "response", None) is not None:
-                    e.response.is_drawn = True
-        kwargs["mergeResponses"] = getattr(self, "mergeResponses", False)
-
-        # Draw elements that are not boundaries and not inside boundaries
+        # Then everything outside any boundary.
         for e in TM._elements:
             if (
-                not getattr(e, "is_drawn", False)
-                and not isinstance(e, Boundary)
+                not isinstance(e, Boundary)
                 and getattr(e, "inBoundary", None) is None
+                and id(e) not in kwargs["skip"]
             ):
                 edges.append(e.dfd(**kwargs))
 
         return self._dfd_template().format(
             edges=indent("\n".join(filter(len, edges)), "    ").rstrip("\n")
         )
+
+    def legend(self, colormap: bool = False) -> str:
+        """DOT for a standalone legend of the model's DFD (see pytm.legend)."""
+        from .legend import legend_dot
+
+        return legend_dot(colormap=colormap)
+
+    @staticmethod
+    def _boundary_height(boundary) -> int:
+        """Number of boundary levels nested inside *boundary* (0 if none)."""
+        children = [b for b in TM._boundaries if b.inBoundary is boundary]
+        return max((1 + TM._boundary_height(b) for b in children), default=0)
+
+    def _hidden_flows(self, merge_responses: bool) -> set[int]:
+        """ids of the dataflows not drawn as edges of their own.
+
+        Duplicates ignored by check() (``onDuplicates=Action.IGNORE``), and,
+        with *merge_responses*, responses drawn on their request's edge.
+        """
+        hidden = {id(flow) for flow in TM._get_state().ignored_duplicates}
+        if merge_responses:
+            hidden |= {
+                id(flow.response)
+                for flow in TM._flows
+                if getattr(flow, "response", None) is not None
+            }
+        return hidden
 
     def _seq_template(self):
         """Template for sequence diagram generation."""
@@ -687,9 +749,49 @@ a brief description of the system being modeled."""
             participants="\n".join(participants), messages="\n".join(messages)
         )
 
-    def report(self, template_path):
-        """Generate report from template."""
+    def report(self, template_path, variables=None):
+        """Generate report from template.
 
+        Templates ending in ``.j2`` or ``.jinja`` (e.g. ``report.md.j2``) are
+        rendered with Jinja2 (``pip install pytm[jinja]``); all others use
+        pytm's built-in format-string templates. Both receive the same data,
+        plus any extra *variables* (e.g. ``{"dfd_image": "dfd.png"}``).
+
+        *template_path* is looked up as a file first (relative to the current
+        directory), then among the templates shipped with pytm, so
+        ``basic_template.md`` or ``report.md.j2`` work from anywhere;
+        ``pytm:<name>`` always uses the shipped one (see
+        :mod:`pytm.report_templates`).
+        """
+        from .jinja_report import is_jinja_template, render_jinja
+        from .relations import Relations
+        from .report_templates import TemplateNotFound, resolve_template
+
+        try:
+            template_file = resolve_template(template_path)
+        except TemplateNotFound as exc:
+            raise UIError(
+                exc, f"while looking for the report template ({template_path})."
+            )
+
+        from .report_templates import stylesheet_uri
+
+        context = self._report_context()
+        # Templates link the stylesheet as {stylesheet}; found like a template
+        # (current directory first, then pytm's), overridable as a variable.
+        context["stylesheet"] = stylesheet_uri()
+        context.update(variables or {})
+        state = TM._get_state()
+        state.report_relations = Relations(context)
+        try:
+            if is_jinja_template(template_file):
+                return render_jinja(template_file, context)
+            return self._report_superformatter(template_file, context)
+        finally:
+            state.report_relations = None
+
+    def _report_superformatter(self, template_path, context):
+        """Render a built-in format-string template."""
         try:
             with open(template_path, encoding="utf-8") as file:
                 template = file.read()
@@ -699,6 +801,14 @@ a brief description of the system being modeled."""
             raise UIError(
                 e, f"while trying to open the report template file ({template_path})."
             )
+
+        if not hasattr(self, "_sf") or self._sf is None:
+            self._sf = SuperFormatter()
+
+        return self._sf.format(template, **context)
+
+    def _report_context(self):
+        """Return the data passed to report templates (by both engines)."""
 
         def _clone(obj):
             copy_method = getattr(obj, "model_copy", None)
@@ -804,6 +914,7 @@ a brief description of the system being modeled."""
 
         threats = encode_threat_data(TM._threats)
         findings = encode_threat_data(getattr(self, "findings", []))
+        excluded_findings = encode_threat_data(getattr(self, "excluded_findings", []))
 
         elements = encode_element_threat_data(TM._elements)
         assets = encode_element_threat_data(TM._assets)
@@ -816,6 +927,7 @@ a brief description of the system being modeled."""
             "dataflows": flows,
             "threats": threats,
             "findings": findings,
+            "excluded_findings": excluded_findings,
             "elements": elements,
             "assets": assets,
             "actors": actors,
@@ -823,13 +935,12 @@ a brief description of the system being modeled."""
             "data": TM._data,
         }
 
-        if not hasattr(self, "_sf") or self._sf is None:
-            self._sf = SuperFormatter()
-
-        return self._sf.format(template, **data)
+        return data
 
     def _check_duplicates(self, flows):
         """Ensure duplicate dataflows are handled according to configuration."""
+        ignored = TM._get_state().ignored_duplicates
+        ignored.clear()
         if getattr(self, "onDuplicates", Action.NO_ACTION) == Action.NO_ACTION:
             return
 
@@ -853,7 +964,8 @@ a brief description of the system being modeled."""
                     if left_controls._attr_values() != right_controls._attr_values():
                         continue
                 if self.onDuplicates == Action.IGNORE:
-                    right.is_drawn = True
+                    if all(flow is not right for flow in ignored):
+                        ignored.append(right)
                     continue
                 raise ValueError(
                     "Duplicate Dataflow found between {} and {}: {} is same as {}".format(

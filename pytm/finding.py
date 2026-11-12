@@ -160,6 +160,18 @@ class Finding(BaseModel):
         except (ValueError, TypeError):
             pass
 
+    @property
+    def anchor(self) -> str:
+        """Link anchor of this finding, e.g. ``finding-7``.
+
+        Findings an assumption suppressed are numbered separately, so theirs
+        are ``suppressed-finding-<id>``.
+        """
+        from .anchors import slugify
+
+        prefix = "suppressed-finding" if self.assumption is not None else "finding"
+        return f"{prefix}-{slugify(self.id)}"
+
     def __repr__(self):
         return (
             f"<{self.__module__}.{type(self).__name__}({self.id}) at {hex(id(self))}>"

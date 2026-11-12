@@ -23,15 +23,6 @@ class _ConditionValidator(ast.NodeVisitor):
     """Validate threat conditions to ensure they only use safe constructs."""
 
     SAFE_CALL_NAMES: ClassVar[set[str]] = {"any", "all", "len", "min", "max", "sum"}
-    ALLOWED_TARGET_METHODS: ClassVar[set[str]] = {
-        "oneOf",
-        "crosses",
-        "enters",
-        "exits",
-        "inside",
-        "checkTLSVersion",
-        "hasDataLeaks",
-    }
     _ALLOWED_NODES: ClassVar[tuple[type[ast.AST], ...]] = (
         ast.Expression,
         ast.BoolOp,
@@ -111,7 +102,11 @@ class _ConditionValidator(ast.NodeVisitor):
                 )
         elif isinstance(func, ast.Attribute):
             chain = self._attribute_chain(func)
-            if chain[-1] not in self.ALLOWED_TARGET_METHODS:
+            # Only methods marked as condition methods may be called (see
+            # pytm.condition_methods).
+            from .condition_methods import condition_method_names
+
+            if chain[-1] not in condition_method_names():
                 raise ValueError(
                     f"Call to target method '{chain[-1]}' is not permitted"
                 )
@@ -284,6 +279,13 @@ class Threat(BaseModel):
             setattr(self, attr, value)
         except (ValueError, TypeError):
             pass
+
+    @property
+    def anchor(self) -> str:
+        """Link anchor of this threat, e.g. ``threat-inp01``."""
+        from .anchors import anchor_for_threat_id
+
+        return anchor_for_threat_id(self.id)
 
     def __repr__(self):
         return (

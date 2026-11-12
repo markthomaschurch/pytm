@@ -1,0 +1,207 @@
+{#- Shared building blocks for pytm's built-in report sections.
+
+    Import with: {% import "_macros.md.j2" as m %}
+    Model text (names, descriptions) is escaped with md_escape where it is
+    inserted into Markdown; threat and finding text from the report data is
+    already HTML-escaped by pytm and is inserted as-is.
+-#}
+
+{# A labelled bullet list, one item per line, or "**label:** None" when
+   empty. `items` are Markdown strings; lists stay readable however long
+   they get, instead of wrapping as one long line. #}
+{% macro labelled_list(label, items, empty="None") %}
+{% if items %}
+**{{ label }}:**
+
+{% for item in items %}
+- {{ item }}
+{% endfor %}
+{% else %}
+**{{ label }}:** {{ empty }}
+{% endif %}
+{% endmacro %}
+
+{# The same, for links to model objects. #}
+{% macro link_list(label, objects, empty="None") %}
+{% set items = [] %}
+{% for obj in objects %}{% set _ = items.append(link(obj)) %}{% endfor %}
+{{ labelled_list(label, items, empty) }}
+{% endmacro %}
+
+{# "Yes"/"No" for booleans, the member name for enums, text otherwise. #}
+{% macro value(v) -%}
+{% if v is sameas true %}Yes{% elif v is sameas false %}No{% elif v.name is defined and v.value is defined %}{{ v.name }}{% else %}{{ v | md_escape }}{% endif %}
+{%- endmacro %}
+
+{# The element's thumbnail image, if one was rendered (--thumbnails). The
+   trailing "\ " keeps it an inline image rather than a captioned figure, so
+   it stays in its section (LaTeX floats figures) without repeating the
+   heading as a caption. #}
+{% macro thumbnail_image(obj) -%}
+{% if thumbnail(obj) %}![{{ obj | label | md_escape }}]({{ thumbnail(obj) }})\ {% endif %}
+{%- endmacro %}
+
+{# A two-column property table; rows are (label, markdown) pairs and
+   rows with an empty value are left out. Line breaks in a value would end
+   the table row, so values are joined onto one line. #}
+{% macro property_table(rows) %}
+| Property | Value |
+|----|-----------|
+{% for label, text in rows if text %}
+| {{ label }} | {{ text | string | replace("\r", "") | replace("\n", " ") }} |
+{% endfor %}
+{% endmacro %}
+
+{# Bullet list of findings: threat (linked to the library), description,
+   severity, and a link to the finding's details. #}
+{% macro finding_list(findings) %}
+{% for f in findings %}
+- [{{ f.threat_id }}](#{{ threat_anchor(f) }}) {{ f.description }} ({{ f.severity }}, [finding {{ f.id }}](#{{ anchor(f) }}))
+{% else %}
+None.
+{% endfor %}
+{% endmacro %}
+
+{# Bullet list of findings an assumption suppressed, each with the
+   assumption that suppressed it; with_target for findings on other
+   elements (laid out like targeted_finding_list). #}
+{% macro suppressed_list(findings, with_target=false) %}
+{% for f in findings %}
+{% set a = assumption_of(f) %}
+{% if with_target %}
+- [Suppressed finding {{ f.id }}](#{{ anchor(f) }}) on {{ link(f.element) }}: [{{ f.threat_id }}](#{{ threat_anchor(f) }}) {{ f.description }} ({{ f.severity }}), by {{ link(a) if a else "an assumption" }}
+{% else %}
+- [{{ f.threat_id }}](#{{ threat_anchor(f) }}) {{ f.description }} ({{ f.severity }}, [suppressed finding {{ f.id }}](#{{ anchor(f) }})), by {{ link(a) if a else "an assumption" }}
+{% endif %}
+{% else %}
+None.
+{% endfor %}
+{% endmacro %}
+
+{# Assumptions (from assumptions_of()), each with its link target, its
+   description and what it suppressed. Excluded threat ids that suppressed
+   nothing are listed too: the assumption may be stale, or the id a typo. #}
+{% macro assumption_items(entries) %}
+{% for a in entries %}
+- [**{{ a | label | md_escape }}**]{{ "{#" ~ a.anchor ~ "}" }}{% if a.description %}: {{ a.description | md_escape }}{% endif %}
+
+{% for f in a.suppressed %}
+    - Suppresses [{{ f.threat_id }}](#{{ threat_anchor(f) }}) on {{ link(f.element) }} ([suppressed finding {{ f.id }}](#{{ anchor(f) }}))
+{% endfor %}
+{% if a.unused %}
+    - Excludes {{ a.unused | join(", ") }}, which suppressed no finding
+{% endif %}
+{% if a.unknown %}
+    - Excludes {{ a.unknown | join(", ") }}, which {{ "is" if a.unknown | length == 1 else "are" }} not in the threat library
+{% endif %}
+{% endfor %}
+{% endmacro %}
+
+{# Bullet list of findings on other elements: a link to each finding's
+   details, the element it is on, and its threat (linked to the library). #}
+{% macro targeted_finding_list(findings) %}
+{% for f in findings %}
+- [Finding {{ f.id }}](#{{ anchor(f) }}) on {{ link(f.element) }}: [{{ f.threat_id }}](#{{ threat_anchor(f) }}) {{ f.description }} ({{ f.severity }})
+{% else %}
+None.
+{% endfor %}
+{% endmacro %}
+
+{# How to resolve a finding: numbered alternatives, each a set of value
+   changes that together make the threat stop applying. Alternatives made
+   only of safeguards come first; changes that only alter how the model
+   describes the system are marked. #}
+{% macro subject_link(finding, c) -%}
+{% if c.subject == "target" %}{{ link(finding.element) }}{% elif c.subject_anchor %}{{ c.subject.split(" ", 1)[0] }} [{{ c.subject.split(" ", 1)[1].strip('"') | md_escape }}](#{{ c.subject_anchor }}){% else %}{{ c.subject | md_escape }}{% endif %}
+{%- endmacro %}
+
+{% macro change_text(c) -%}
+{{ c.instruction }} (currently `{{ c.current }}`{% if c.is_computed %}; *computed: change what it depends on*{% elif not c.is_mitigation %}; *describes the system*{% endif %})
+{%- endmacro %}
+
+{% macro remedy_list(finding) %}
+{% set options = remedies_of(finding) %}
+{% if options %}
+**How to resolve** (any one of these makes the threat no longer apply):
+
+{% for changes in options %}
+{% if changes | length == 1 %}
+{{ loop.index }}. On {{ subject_link(finding, changes[0]) }}, {{ change_text(changes[0]) }}
+{% elif changes | map(attribute="subject") | unique | list | length == 1 %}
+{{ loop.index }}. On {{ subject_link(finding, changes[0]) }}, all of:
+{% for c in changes %}
+    - {{ change_text(c) }}
+{% endfor %}
+{% else %}
+{{ loop.index }}. All of:
+{% for c in changes %}
+    - on {{ subject_link(finding, c) }}, {{ change_text(c) }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{{ "" }}
+{% if options | map("selectattr", "is_mitigation", "false") | map("list") | select | list %}
+*Describes the system*: the change removes the threat by describing the system differently rather than by adding a safeguard. Make it only if the model is currently inaccurate.
+
+{% endif %}
+{% else %}
+**How to resolve:** this threat applies to every {{ finding.element | getElementType }}, so no change to the model's values removes it. Apply its mitigations, or record it as accepted with an `Assumption` that excludes {{ finding.threat_id }}.
+
+{% endif %}
+{% endmacro %}
+
+{# Controls that are in place on an element. #}
+{% macro controls(obj) %}
+{% set items = [] %}
+{% for name in controls_in_place(obj) %}{% set _ = items.append("`" ~ name ~ "`") %}{% endfor %}
+{{ labelled_list("Controls in place", items) }}
+{% endmacro %}
+
+{# Everything the report says about one element: heading (with its anchor),
+   description, thumbnail, properties, controls, dataflows, data and threats.
+   `rows` are extra (label, markdown) property rows for the element's type. #}
+{% macro element_section(el, rows=[], show_flows=true) %}
+### {{ el | label | md_escape }} {{ heading_id(el) }}
+
+{% if el.description %}
+{{ el.description }}
+
+{% endif %}
+{% if thumbnail(el) %}
+{{ thumbnail_image(el) }}
+
+{% endif %}
+{{ property_table([("Type", el | getElementType)] + rows + [("Boundary", link(el.inBoundary) if el.inBoundary else ""), ("In scope", value(el.inScope))]) }}
+
+{{ controls(el) }}
+
+{% if show_flows %}
+{{ link_list("Dataflows", flows_of(el)) }}
+
+{% endif %}
+{{ link_list("Data", data_of(el)) }}
+
+**Threats:**
+
+{{ finding_list(findings_of(el)) }}
+{{ assumptions_and_suppressed(el) }}
+{% endmacro %}
+
+{# The element's own assumptions and the threats suppressed on it (by its
+   assumptions or the model's); nothing if it has neither. #}
+{% macro assumptions_and_suppressed(el) %}
+{% set own = assumptions_of(el) %}
+{% if own %}
+
+**Assumptions:**
+
+{{ assumption_items(own) }}
+{% endif %}
+{% set hidden = suppressed_of(el) %}
+{% if hidden %}
+
+**Suppressed threats:**
+
+{{ suppressed_list(hidden) }}
+{% endif %}
+{% endmacro %}
