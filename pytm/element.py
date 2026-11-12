@@ -367,9 +367,14 @@ class Element(BaseModel):
         """Check if any flows have insufficient TLS version."""
 
     def _set_severity(self, sev: Any) -> None:
-        """Set the severity based on numeric or textual value."""
+        """Raise the severity to *sev* (a number or a name) if it is higher.
+
+        An element's severity is the highest severity of its findings, so a
+        later, lower one must not lower it (names already worked this way;
+        numbers replaced the severity).
+        """
         if isinstance(sev, int):
-            self.severity = max(0, sev)
+            self.severity = max(self.severity, sev, 0)
             return
 
         if isinstance(sev, str):
