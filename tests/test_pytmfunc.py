@@ -90,12 +90,9 @@ class TestTM:
 
     def test_dfd(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        install_path = os.path.dirname(os.path.realpath(pytm.__file__))
 
         with open(os.path.join(dir_path, "dfd.dot")) as x:
-            expected = (
-                x.read().strip().replace("INSTALL_PATH", os.path.dirname(install_path))
-            )
+            expected = x.read().strip()
 
         random.seed(0)
 
@@ -125,12 +122,9 @@ class TestTM:
 
     def test_dfd_colormap(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        install_path = os.path.dirname(os.path.realpath(pytm.__file__))
 
         with open(os.path.join(dir_path, "dfd_colormap.dot")) as x:
-            expected = (
-                x.read().strip().replace("INSTALL_PATH", os.path.dirname(install_path))
-            )
+            expected = x.read().strip()
 
         random.seed(0)
 
@@ -249,14 +243,25 @@ class TestTM:
         # No raw backslash may remain: PlantUML would read "\n"/"\t" as
         # control characters and a trailing "\" as a line continuation.
         assert "\\" not in output
+    def test_dfd_datastore_uses_native_shape(self):
+        # Datastores used to reference a PNG by absolute path, which -Tsvg
+        # output only links to, so the icon broke when the SVG was moved.
+        for colormap in (False, True):
+            random.seed(0)
+            TM.reset()
+            tm = TM("datastore shape tm", description="aaa")
+            Datastore("SQL Database")
+
+            output = tm.dfd(colormap=colormap)
+
+            assert "shape = cylinder;" in output
+            assert "image" not in output
+            assert 'label = "SQL Database";' in output
 
     def test_dfd_duplicates_ignore(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        install_path = os.path.dirname(os.path.realpath(pytm.__file__))
         with open(os.path.join(dir_path, "dfd.dot")) as x:
-            expected = (
-                x.read().strip().replace("INSTALL_PATH", os.path.dirname(install_path))
-            )
+            expected = x.read().strip()
 
         random.seed(0)
 
@@ -712,16 +717,11 @@ class TestTM:
     def test_multilevel_dfd(self):
         random.seed(0)
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        install_path = os.path.dirname(os.path.realpath(pytm.__file__))
 
         with open(os.path.join(dir_path, "dfd_level0.txt")) as x:
-            level_0 = (
-                x.read().strip().replace("INSTALL_PATH", os.path.dirname(install_path))
-            )
+            level_0 = x.read().strip()
         with open(os.path.join(dir_path, "dfd_level1.txt")) as x:
-            level_1 = (
-                x.read().strip().replace("INSTALL_PATH", os.path.dirname(install_path))
-            )
+            level_1 = x.read().strip()
 
         TM.reset()
         tm = TM("my test tm", description="aaa")
