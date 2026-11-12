@@ -44,6 +44,24 @@ class UIError(Exception):
         self.context = context
 
 
+def _resolve_model_path(path: str) -> str:
+    """*path*, looked up next to the model script if it is relative.
+
+    A relative path is resolved against the directory of the script being
+    run (the model), so a model finds its files whether it is run from its
+    own directory or from elsewhere; if there is no such file there, the
+    path is used as given (relative to the current directory).
+    """
+    if os.path.isabs(path):
+        return path
+    script = getattr(sys.modules.get("__main__"), "__file__", None)
+    if script:
+        candidate = os.path.join(os.path.dirname(os.path.abspath(script)), path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+
 @dataclass
 class TMState:
     """Mutable registry for TM-owned collections."""
@@ -142,6 +160,10 @@ class TM(BaseModel, metaclass=TMModelMetaclass):
         default_factory=lambda: os.path.dirname(__file__) + "/threatlib/threats.json",
         description="JSON file with custom threats",
     )
+    extraThreatsFiles: List[str] = Field(
+        default_factory=list,
+        description="More JSON threat files, loaded after threatsFile; a relative path is looked up next to the model script, then in the current directory",
+    )
     isOrdered: bool = Field(
         default=False, description="Automatically order all Dataflows"
     )
@@ -166,6 +188,16 @@ class TM(BaseModel, metaclass=TMModelMetaclass):
         default_factory=list, description="A list of assumptions about the design/model"
     )
     colormap: bool = Field(default=False, exclude=True)
+
+    @field_validator("extraThreatsFiles", mode="before")
+    @classmethod
+    def _normalize_extra_threats_files(cls, value):
+        """Allow a single path as well as a list of paths."""
+        if value is None:
+            return []
+        if isinstance(value, (str, os.PathLike)):
+            return [os.fspath(value)]
+        return [os.fspath(item) for item in value]
 
     @field_validator("assumptions", mode="before")
     @classmethod
@@ -215,8 +247,12 @@ class TM(BaseModel, metaclass=TMModelMetaclass):
                 object.__delattr__(self, "_initializing_tm")
 
     def __setattr__(self, name, value):
-        if name == "threatsFile" and not getattr(self, "_initializing_tm", False):
-            current_value = getattr(self, "threatsFile", None)
+        # Changing the threat files reloads the threats (and restores the
+        # previous files if the new ones can't be loaded).
+        if name in ("threatsFile", "extraThreatsFiles") and not getattr(
+            self, "_initializing_tm", False
+        ):
+            current_value = getattr(self, name, None)
             if current_value == value:
                 return super().__setattr__(name, value)
 
@@ -251,22 +287,35 @@ class TM(BaseModel, metaclass=TMModelMetaclass):
         self._add_threats()
 
     def _add_threats(self):
-        """Add threats from the threats file."""
-        try:
-            with open(self.threatsFile, "r", encoding="utf8") as threat_file:
-                threats_json = json.load(threat_file)
-        except (FileNotFoundError, PermissionError, IsADirectoryError) as e:
-            raise UIError(
-                e, f"while trying to open the threat file ({self.threatsFile})."
-            )
+        """Add threats from threatsFile, then from each of extraThreatsFiles.
 
+        A threat id defined in more than one file is an error.
+        """
         from .threat import Threat
 
-        active_threats = (
-            threat for threat in threats_json if "DEPRECATED" not in threat
-        )
-        for threat in active_threats:
-            TM._threats.append(Threat(**threat))
+        defined_in: dict[str, str] = {}
+        paths = [self.threatsFile] + [
+            _resolve_model_path(path) for path in self.extraThreatsFiles
+        ]
+        for path in paths:
+            try:
+                with open(path, "r", encoding="utf8") as threat_file:
+                    threats_json = json.load(threat_file)
+            except (FileNotFoundError, PermissionError, IsADirectoryError) as e:
+                raise UIError(e, f"while trying to open the threat file ({path}).")
+
+            for entry in threats_json:
+                if "DEPRECATED" in entry:
+                    continue
+                sid = entry.get("SID")
+                if sid in defined_in:
+                    raise UIError(
+                        ValueError(f"threat {sid} is defined more than once"),
+                        f"while loading threats: {sid} is in both "
+                        f"{defined_in[sid]} and {path}.",
+                    )
+                defined_in[sid] = path
+                TM._threats.append(Threat(**entry))
 
     def check(self):
         """Check the threat model for consistency and completeness."""
