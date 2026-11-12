@@ -938,6 +938,7 @@
         }
     ],
     "excluded_findings": [],
+    "extraThreatsFiles": [],
     "findings": [],
     "flows": [
         {

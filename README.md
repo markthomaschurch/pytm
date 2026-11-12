@@ -414,6 +414,15 @@ For the security practitioner, you may supply your own threats file by setting `
  }
 ```
 
+To keep pytm's threat library and add threats of your own, list your files in `TM.extraThreatsFiles` instead; they are loaded after `TM.threatsFile`, in order:
+
+```python
+tm = TM("my tm")
+tm.extraThreatsFiles = ["project_threats.json"]
+```
+
+A relative path is looked up next to the model script first, then in the current directory, so the model finds its files wherever it is run from. Each threat `SID` may appear only once across all the files: a duplicate is an error that names both files. Setting either attribute reloads the threats.
+
 The `target` field lists classes of model elements to match this threat against.
 Those can be assets, like: Actor, Datastore, Server, Process, ExternalEntity,
 Lambda, LLM, Agent or Element, which is the base class and matches any. It can also be a Dataflow that connects two assets.
