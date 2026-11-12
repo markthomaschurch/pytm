@@ -388,16 +388,6 @@ class Element(BaseModel):
                 "very low": 1,
                 "info": 0,
             }
-            legacy_mapping = {
-                "critical": 3,
-                "high": 2,
-                "medium": 1,
-                "low": 0,
-            }
-
             value = mapping.get(normalized)
-            if value is None:
-                value = legacy_mapping.get(normalized)
-
             if value is not None and value > self.severity:
                 self.severity = value
