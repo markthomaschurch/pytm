@@ -2019,3 +2019,24 @@ class TestFinding:
         server = next(e for e in TM._elements if e.name == "Web Server")
         assert len(server.findings) == 1
         assert server.findings[0].likelihood == ""
+
+
+def test_colormap_keeps_lambda_rounded_corners():
+    def node(colormap):
+        random.seed(0)
+        TM.reset()
+        tm = TM("lambda tm", description="aaa")
+        fn = Lambda("Function")
+        tm.check()
+        # A finding, so the colormap fills the shape.
+        TM._threats[:] = [
+            Threat(SID="T1", target="Lambda", description="t", condition="True")
+        ]
+        tm.resolve()
+        output = tm.dfd(colormap=colormap)
+        return output[output.index(fn._uniq_name()) :].split("]")[0]
+
+    assert "style=rounded" in node(False)
+    coloured = node(True)
+    assert coloured.count("style=") == 1
+    assert 'style="rounded,filled"' in coloured
