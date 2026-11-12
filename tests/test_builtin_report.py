@@ -169,6 +169,7 @@ def test_builtin_templates_are_shipped():
     )
     assert names == [
         "_macros.md.j2",
+        "actions.md.j2",
         "report.md.j2",
         "sections/actors.md.j2",
         "sections/assets.md.j2",
@@ -177,10 +178,12 @@ def test_builtin_templates_are_shipped():
         "sections/dataflows.md.j2",
         "sections/diagrams.md.j2",
         "sections/legend.md.j2",
+        "sections/metadata.md.j2",
         "sections/suppressed.md.j2",
         "sections/threat_library.md.j2",
         "sections/threats.md.j2",
         "sections/title.md.j2",
+        "sections/verification.md.j2",
     ]
 
 

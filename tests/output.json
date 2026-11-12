@@ -1405,6 +1405,7 @@
     "mergeResponses": false,
     "name": "my test tm",
     "onDuplicates": "Action.NO_ACTION",
+    "requireVerifiedAssumptions": false,
     "threatsExcluded": [],
     "threatsFile": "pytm/threatlib/threats.json"
 }

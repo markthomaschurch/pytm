@@ -370,6 +370,27 @@ tm.process()
 
 You also have the option of using [pytmGPT](https://chat.openai.com/g/g-soISG24ix-pytmgpt) to create your models from prose!
 
+### Assumptions
+
+An `Assumption` records a claim about the system, for the whole model (`tm.assumptions`) or one element (`element.assumptions`). One that lists threat SIDs in `exclude` suppresses those threats: their findings are moved to `tm.excluded_findings` instead of `tm.findings`.
+
+Assumptions often need someone to confirm them. Record who is responsible with `verifier`, and once it is confirmed, `verified=True` and `verifiedOn` (an ISO date):
+
+```python
+web.assumptions = [
+    Assumption(
+        "No PHP on the web server",
+        exclude=["INP16"],
+        verifier="Platform team",
+        verified=True,
+        verifiedOn="2026-11-01",
+    ),
+    Assumption("Patched weekly", exclude=["SC02"], verifier="Ana Smith"),
+]
+```
+
+By default every assumption suppresses the threats it excludes. With `tm.requireVerifiedAssumptions = True`, only verified ones do: the findings of an unverified assumption stay findings until it is verified.
+
 ### Generating Diagrams
 
 Diagrams are output as [Dot](https://graphviz.gitlab.io/) and [PlantUML](https://plantuml.com/).
@@ -496,11 +517,21 @@ pytm ships a complete, cross-linked report template (it needs Jinja2: `pip insta
 cd report && pandoc report.md -s --embed-resources -o report.html && pandoc report.md -o report.pdf
 ```
 
-It contains a summary; the dataflow and sequence diagrams; a data dictionary (each piece of data with the elements that handle it, the dataflows that carry it and the threats against them); sections for actors, dataflows, assets and trust boundaries (details, controls in place, attached dataflows, data, findings and thumbnails); every finding with how to resolve it (the specific values to change, e.g. "set `controls.sanitizesInput` to `True`", with alternatives when there are several ways; alternatives that only add safeguards come first, and changes that merely describe the system differently, such as `isResponse` or `inScope`, are marked); the model's assumptions (each with the findings it suppressed, flagging excluded threat IDs that suppressed nothing or aren't in the threat library) and the threats left out with `--exclude`; each element's own assumptions and the threats suppressed on it; every suppressed finding with the assumption behind it, so reviewers can check that each assumption still holds; and a threat library limited to the threats that apply to the model (suppressed ones included), with each condition laid out over short lines and one reference per line. Every element, finding, assumption and threat links to the others.
+It contains a summary; the dataflow and sequence diagrams; a data dictionary (each piece of data with the elements that handle it, the dataflows that carry it and the threats against them); sections for actors, dataflows, assets and trust boundaries (details, controls in place, attached dataflows, data, findings and thumbnails); every finding with how to resolve it (the specific values to change, e.g. "set `controls.sanitizesInput` to `True`", with alternatives when there are several ways; alternatives that only add safeguards come first, and changes that merely describe the system differently, such as `isResponse` or `inScope`, are marked); the model's assumptions (each with whether and by whom it was verified, the findings it suppressed or would suppress once verified, flagging excluded threat IDs that suppressed nothing or aren't in the threat library) and the threats left out with `--exclude`; an assumption verification section listing the unverified assumptions by who is responsible for verifying them, and the verified ones with who verified them and when; each element's own assumptions and the threats suppressed on it; every suppressed finding with the assumption behind it, so reviewers can check that each assumption still holds; and a threat library limited to the threats that apply to the model (suppressed ones included), with each condition laid out over short lines and one reference per line. Every element, finding, assumption and threat links to the others.
 
 The diagrams default to `dfd.png` and `seq.png` next to the report; change them with `--report-var dfd_image=PATH` and `--report-var seq_image=PATH`, or set one to an empty value to leave it out. A legend table follows the DFD; if `dfd.png` was rendered with `--colormap`, add `--report-var dfd_colormap=yes` to explain its colours too. When thumbnails are rendered (`--thumbnails`), the same step draws each legend shape and colour as a small image, and the legend table shows those instead of their names. The report starts with a small pandoc metadata block that makes links visible in PDF output (`colorlinks`) and sets the HTML page title; leave it out with `--report-var pandoc_metadata=no`. The links use pandoc's heading IDs (`{#...}`), so they work in pandoc's HTML and PDF output but not in Markdown previews (such as GitHub's) that don't support heading attributes.
 
 The report is built from sub-templates (`pytm/templates/sections/*.md.j2`) and shared macros (`pytm/templates/_macros.md.j2`). To customize one part, copy `report.md.j2` next to your model, and add a file with the same name as the section you want to change (for example `sections/threats.md.j2`): templates next to your template are used before the built-in ones.
+
+#### Action report
+
+`pytm:actions.md.j2` is a shorter report of only what needs doing, rendered the same way (`--report pytm:actions.md.j2`, with the same `--report-var` variables). After the diagrams it lists:
+
+- **Threats by severity:** every finding, Very High first, with its target, mitigations and how to resolve it, and a note when an unverified assumption would suppress it once verified.
+- **Assumptions to verify:** the unverified assumptions that would suppress findings once verified (with `tm.requireVerifiedAssumptions`), ordered by the combined severity of those findings (Very High counts 5, High 4, Medium 3, Low 2, Very Low 1), each with who is responsible and the findings it would suppress.
+- **Assumptions to verify, by person:** each verifier's list, then those no one is assigned.
+
+Everything else is left out: suppressed findings, verified assumptions, assumptions that affect no finding, and the element, data and threat library sections (links that would point at them, such as a finding's target, are shown as plain text).
 
 #### Jinja2 templates
 
@@ -538,6 +569,8 @@ These helpers link the parts of a model together. In format-string templates cal
 | `getThreatFindings` (`findings_for(threat)`) | the findings a threat produced |
 | (Jinja2 only) `assumptions_of(el=None)` | assumptions about an element, or about the whole model: each with `name`, `description`, `exclude`, `anchor`, the findings it `suppressed`, and the excluded threat IDs that suppressed nothing (`unused`) or aren't in the threat library (`unknown`) |
 | (Jinja2 only) `suppressed_of(el=None)`, `suppressed_for(threat)`, `data_suppressed_of(data)`, `assumption_of(finding)` | findings an assumption suppressed (all, on an element, of a threat, or on the dataflows that carry the data), and the assumption that suppressed one |
+| (Jinja2 only) `all_assumptions()`, `pending_assumptions_of(finding)`, `requires_verified_assumptions()` | every assumption (model's, then each element's), with `verified`, `verifier`, `verifiedOn` and, when the model requires verified assumptions, the findings it would suppress once verified (`pending`); the unverified assumptions that would suppress a finding; and whether `tm.requireVerifiedAssumptions` is set |
+| (Jinja2 only) `assumptions_by_risk()`, `findings_by_severity(findings)` | unverified assumptions that would suppress findings once verified, the most at stake first (each with `pending`, `risk` and `risk_counts()`); findings grouped by severity as `(severity, findings)` pairs, most severe first |
 | (Jinja2 only) `reported_threats()` | threats with a finding or a suppressed finding, for a threat library |
 | (Jinja2 only) `excluded_threats()` | threats left out with `--exclude`, as `(id, threat)` pairs (`threat` is `None` for an unknown id) |
 | `getFindingRemedies` (`remedies_of(finding)`) | how to resolve a finding: alternative sets of changes, each with `attribute`, `required`, `current`, `subject` and a readable `instruction`; making every change in any one set makes the threat stop applying |

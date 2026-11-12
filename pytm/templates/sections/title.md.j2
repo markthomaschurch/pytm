@@ -44,6 +44,10 @@ These threats were not checked for any element (`--exclude`):
 | &nbsp;&nbsp;{{ severity }} | {{ count }} |
 {% endif %}
 {% endfor %}
+{% set unverified = all_assumptions() | rejectattr("verified") | list %}
+{% if unverified %}
+| [Unverified assumptions](#section-unverified-assumptions) | {{ unverified | length }} |
+{% endif %}
 {% set suppressed = suppressed_of() %}
 {% if suppressed %}
 | Suppressed findings | {{ suppressed | length }} |

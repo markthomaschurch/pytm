@@ -199,6 +199,10 @@ class TM(BaseModel, metaclass=TMModelMetaclass):
     assumptions: List[Assumption] = Field(
         default_factory=list, description="A list of assumptions about the design/model"
     )
+    requireVerifiedAssumptions: bool = Field(
+        default=False,
+        description="Only verified assumptions exclude threats; unverified ones are reported but don't suppress findings",
+    )
     colormap: bool = Field(default=False, exclude=True)
 
     @field_validator("extraThreatsFiles", mode="before")
@@ -387,6 +391,7 @@ a brief description of the system being modeled."""
 
         # Get global assumptions with exclusions
         global_assumptions = [a for a in self.assumptions if len(a.exclude) > 0]
+        require_verified = self.requireVerifiedAssumptions
         elements = defaultdict(list)
 
         for e in TM._elements:
@@ -418,7 +423,7 @@ a brief description of the system being modeled."""
                 _continue = False
                 element_assumptions = getattr(e, "assumptions", [])
                 for assumption in element_assumptions + global_assumptions:
-                    if hasattr(assumption, "exclude") and t.id in assumption.exclude:
+                    if assumption.excludes(t.id, require_verified):
                         excluded_finding_count += 1
                         f = Finding(
                             e,

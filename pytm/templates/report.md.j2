@@ -19,22 +19,12 @@
     pieces are macros in _macros.md.j2. To change one part, put a file with
     the same name next to your own copy of this template.
 -#}
-{% if (pandoc_metadata | default("yes") | string | lower) not in ("no", "false", "0", "") %}
----
-pagetitle: {{ tm.name | tojson }}
-colorlinks: true
-geometry: margin=0.75in
-maxwidth: 52em
-header-includes:
-  - '`\IfFileExists{xurl.sty}{\usepackage{xurl}}{}`{=latex}'
-  - '`\raggedright`{=latex}'
----
-
-{% endif %}
+{% include "sections/metadata.md.j2" %}
 {% set dfd_image = dfd_image | default("dfd.png") %}
 {% set seq_image = seq_image | default("seq.png") %}
 {% set dfd_colormap = (dfd_colormap | default("no") | string | lower) in ("yes", "true", "1") %}
 {% include "sections/title.md.j2" %}
+{% include "sections/verification.md.j2" %}
 {% include "sections/diagrams.md.j2" %}
 {% include "sections/data_dictionary.md.j2" %}
 {% include "sections/actors.md.j2" %}

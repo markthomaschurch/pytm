@@ -1,0 +1,51 @@
+{#- Who has to verify which assumptions, and which have been verified.
+    Unverified assumptions are ordered by who is responsible for them, so
+    each person's list is together; those with no one responsible come
+    last. -#}
+{% set entries = all_assumptions() %}
+{% if entries %}
+{% set unverified = entries | rejectattr("verified") | list %}
+{% set verified = entries | selectattr("verified") | list %}
+## Assumption Verification { #section-assumption-verification }
+
+{% if requires_verified_assumptions() %}
+This model requires assumptions to be verified before they suppress
+threats: until an assumption is verified, the threats it excludes are
+reported as findings.
+{% else %}
+Assumptions suppress the threats they exclude whether or not they have
+been verified. To require verification first, set
+`tm.requireVerifiedAssumptions = True`.
+{% endif %}
+
+{% macro about(a) -%}
+{{ link(a.owner) if a.owner else "the whole model" }}
+{%- endmacro %}
+{% macro effect(a) -%}
+{% if a.suppressed %}suppresses {{ a.suppressed | length }} finding{{ "s" if a.suppressed | length != 1 }}{% elif a.pending %}would suppress {{ a.pending | length }} finding{{ "s" if a.pending | length != 1 }}{% endif %}
+{%- endmacro %}
+### Unverified assumptions { #section-unverified-assumptions }
+
+{% if unverified %}
+| Responsible | Assumption | About | Effect |
+|-----|--------|-----|-----|
+{% for a in (unverified | selectattr("verifier") | sort(attribute="verifier")) + (unverified | rejectattr("verifier") | list) %}
+| {{ a.verifier | md_escape if a.verifier else "*No one*" }} | {{ link(a) }} | {{ about(a) }} | {{ effect(a) }} |
+{% endfor %}
+{% else %}
+None: every assumption has been verified.
+{% endif %}
+
+### Verified assumptions { #section-verified-assumptions }
+
+{% if verified %}
+| Assumption | About | Verified by | On | Effect |
+|--------|-----|-----|----|-----|
+{% for a in verified %}
+| {{ link(a) }} | {{ about(a) }} | {{ a.verifier | md_escape }} | {{ a.verifiedOn or "" }} | {{ effect(a) }} |
+{% endfor %}
+{% else %}
+None.
+{% endif %}
+
+{% endif %}

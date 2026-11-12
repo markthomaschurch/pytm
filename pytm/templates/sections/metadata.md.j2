@@ -1,0 +1,15 @@
+{#- The pandoc metadata block at the top of a report (see report.md.j2's
+    pandoc_metadata variable). The page title is page_title if the including
+    template sets it, else the model's name. -#}
+{% if (pandoc_metadata | default("yes") | string | lower) not in ("no", "false", "0", "") %}
+---
+pagetitle: {{ (page_title | default(tm.name)) | tojson }}
+colorlinks: true
+geometry: margin=0.75in
+maxwidth: 52em
+header-includes:
+  - '`\IfFileExists{xurl.sty}{\usepackage{xurl}}{}`{=latex}'
+  - '`\raggedright`{=latex}'
+---
+
+{% endif %}

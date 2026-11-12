@@ -1,0 +1,146 @@
+{#- pytm's action report: what needs doing about a threat model.
+
+    Render with:  ./tm.py --report pytm:actions.md.j2 > actions.md
+    Only what needs doing: after the diagrams, the threats that apply,
+    most severe first, each with how to resolve it; then the unverified
+    assumptions that would suppress findings once verified, those with the
+    most at stake first; then each person's list of them. Suppressed
+    findings, verified assumptions and assumptions that affect no finding
+    are left out, as are the element, data and threat library sections of
+    the full report (pytm:report.md.j2); links to them become plain text.
+
+    Variables (set with --report-var KEY=VALUE): dfd_image, seq_image,
+    dfd_colormap and pandoc_metadata, as for report.md.j2.
+-#}
+{% import "_macros.md.j2" as m %}
+{#- "3 findings (1 Very High, 2 High)" -#}
+{% macro would_suppress(a) -%}
+{{ a.pending | length }} finding{{ "s" if a.pending | length != 1 }} ({% for name, n in a.risk_counts() %}{{ n }} {{ name }}{{ ", " if not loop.last }}{% endfor %})
+{%- endmacro %}
+{% set page_title = tm.name ~ ": Action Items" %}
+{% include "sections/metadata.md.j2" %}
+{% set dfd_image = dfd_image | default("dfd.png") %}
+{% set seq_image = seq_image | default("seq.png") %}
+{% set dfd_colormap = (dfd_colormap | default("no") | string | lower) in ("yes", "true", "1") %}
+{% set groups = findings_by_severity(findings) %}
+{% set to_verify = assumptions_by_risk() %}
+{% filter drop_dangling_links %}
+# {{ tm.name | md_escape }}: Action Items { #section-title }
+
+What needs doing about this threat model: the threats that apply to it,
+most severe first, with how to resolve each one; the unverified
+assumptions that would suppress some of them once verified, those with
+the most at stake first; and each person's list of assumptions to verify.
+
+| | Count |
+|---|---|
+| [Findings](#section-threats-by-severity) | {{ findings | length }} |
+{% for name, group in groups %}
+| &nbsp;&nbsp;[{{ name }}](#section-severity-{{ name | slugify }}) | {{ group | length }} |
+{% endfor %}
+| [Assumptions to verify](#section-assumptions-to-verify) | {{ to_verify | length }} |
+{% set people = to_verify | map(attribute="verifier") | select | unique | list %}
+| [People with assumptions to verify](#section-assumptions-by-verifier) | {{ people | length }} |
+
+{% include "sections/diagrams.md.j2" %}
+## Threats by Severity { #section-threats-by-severity }
+
+{% for name, group in groups %}
+### {{ name }} ({{ group | length }}) { #section-severity-{{ name | slugify }} }
+
+{% for f in group %}
+#### Finding {{ f.id }}: {{ f.description }} {{ "{#" ~ anchor(f) ~ "}" }}
+
+{{ m.property_table([
+    ("Target", link(f.element)),
+    ("Threat", f.threat_id),
+    ("Severity", f.severity),
+    ("Likelihood", f.likelihood),
+    ("CVSS", f.cvss),
+    ("Response", f.response),
+]) }}
+
+{% if f.mitigations %}
+**Mitigations:** {{ f.mitigations | breakable }}
+
+{% endif %}
+{% for a in pending_assumptions_of(f) %}
+**Pending verification:** {{ link(a) }} would suppress this finding once it is verified. {{ m.verification(a) }}.
+
+{% endfor %}
+{{ m.remedy_list(f) }}
+
+{% endfor %}
+{% else %}
+No threats apply to this model.
+
+{% endfor %}
+## Assumptions to Verify { #section-assumptions-to-verify }
+
+{% if not requires_verified_assumptions() %}
+This model lets assumptions suppress threats before they are verified, so
+none are waiting for verification here. Set
+`tm.requireVerifiedAssumptions = True` to report the threats an unverified
+assumption excludes as findings, and its verification as an action.
+
+{% elif to_verify %}
+Each of these assumptions excludes threats that are reported above as
+findings until it is verified: if it holds, verifying it suppresses them;
+if it doesn't, the findings stand. They are ordered by the combined
+severity of those findings: each Very High finding counts 5, High 4,
+Medium 3, Low 2 and Very Low 1.
+
+| | Assumption | About | Responsible | Would suppress |
+|-|--------|-----|-----|--------|
+{% for a in to_verify %}
+| {{ loop.index }} | {{ link(a) }} | {{ link(a.owner) if a.owner else "the whole model" }} | {{ a.verifier | md_escape if a.verifier else "*No one*" }} | {{ would_suppress(a) }} |
+{% endfor %}
+
+{% for a in to_verify %}
+### {{ a | label | md_escape }} {{ "{#" ~ a.anchor ~ "}" }}
+
+{% if a.description %}
+{{ a.description | md_escape }}
+
+{% endif %}
+{{ m.property_table([
+    ("About", link(a.owner) if a.owner else "the whole model"),
+    ("Responsible", a.verifier | md_escape if a.verifier else "*No one*"),
+    ("Combined severity", a.risk),
+]) }}
+
+{% set items = [] %}
+{% for _name, group in findings_by_severity(a.pending) %}{% for f in group %}{% set _ = items.append("[Finding " ~ f.id ~ "](#" ~ anchor(f) ~ ") on " ~ link(f.element) ~ ": " ~ f.threat_id ~ " " ~ f.description ~ " (" ~ f.severity ~ ")") %}{% endfor %}{% endfor %}
+{{ m.labelled_list("Would suppress", items) }}
+
+{% endfor %}
+{% else %}
+None: no unverified assumption would suppress a finding.
+
+{% endif %}
+## Assumptions to Verify, by Person { #section-assumptions-by-verifier }
+
+{% if to_verify %}
+{% for person in people | sort %}
+{% set theirs = to_verify | selectattr("verifier", "equalto", person) | list %}
+### {{ person | md_escape }} ({{ theirs | length }})
+
+{% for a in theirs %}
+- {{ link(a) }}, about {{ link(a.owner) if a.owner else "the whole model" }}: would suppress {{ would_suppress(a) }}
+{% endfor %}
+
+{% endfor %}
+{% set nobody = to_verify | rejectattr("verifier") | list %}
+{% if nobody %}
+### No one assigned ({{ nobody | length }})
+
+{% for a in nobody %}
+- {{ link(a) }}, about {{ link(a.owner) if a.owner else "the whole model" }}: would suppress {{ would_suppress(a) }}
+{% endfor %}
+
+{% endif %}
+{% else %}
+No one: there are no assumptions to verify.
+
+{% endif %}
+{% endfilter %}

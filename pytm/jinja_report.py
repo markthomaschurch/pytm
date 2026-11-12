@@ -13,7 +13,7 @@ Functions
     ``heading_id(obj)``, ``threat_anchor(finding_or_threat)``,
     ``link(obj, text=None)``, ``thumbnail(obj)``, ``controls_in_place(obj)``,
     ``legend_entries()``, ``severity_entries()``, ``legend_image(key)``
-    (see :mod:`pytm.legend`)
+    (see :mod:`pytm.legend`), ``findings_by_severity(findings)``
 
 Cross-references (see :mod:`pytm.relations`)
     ``flows_of(element, direction=None)``, ``data_of(element)``,
@@ -25,7 +25,9 @@ Cross-references (see :mod:`pytm.relations`)
 Filters
     ``slugify``, ``md_escape``, ``anchor``, ``label``, ``format_condition``
     (lay a condition out over short lines), ``split_references``,
-    ``breakable`` (let PDF output wrap long unbroken tokens), and every
+    ``breakable`` (let PDF output wrap long unbroken tokens),
+    ``drop_dangling_links`` (for reports that leave sections out: links to
+    anchors the document doesn't define become plain text), and every
     :class:`pytm.report_util.ReportUtils` method, e.g.
     ``{{ asset | getFindingCount }}``
 
@@ -153,6 +155,45 @@ def link(obj: Any, text: Any = None) -> str:
     return f"[{md_escape(text)}](#{anchor(obj)})"
 
 
+# Pandoc identifiers: "{#id}", "{ #id }", "{#id .class}" after a heading or
+# a bracketed span; and internal links "[text](#id)" (text may contain
+# escaped brackets, "\[").
+_DEFINED_ID = re.compile(r"\{\s*#([^\s}]+)[^}]*\}")
+_INTERNAL_LINK = re.compile(r"(?<!!)\[((?:\\.|[^\]\\])*)\]\(#([^)\s]+)\)")
+
+
+def drop_dangling_links(markdown: Any) -> str:
+    """Turn links to anchors the document doesn't define into plain text.
+
+    For reports that leave sections out: a finding's link to its target
+    element, for example, keeps the element's name but stops pointing at a
+    section that isn't there.
+    """
+    text = str(markdown)
+    defined = set(_DEFINED_ID.findall(text))
+    return _INTERNAL_LINK.sub(
+        lambda m: m.group(0) if m.group(2) in defined else m.group(1), text
+    )
+
+
+def findings_by_severity(findings: Any) -> list[tuple[str, list[Any]]]:
+    """*findings* grouped by severity, most severe first, each group by id."""
+    from .relations import SEVERITY_ORDER, severity_rank
+
+    def number(finding):
+        value = str(getattr(finding, "id", ""))
+        return (0, int(value), "") if value.isdigit() else (1, 0, value)
+
+    groups = []
+    for name in SEVERITY_ORDER:
+        group = [
+            f for f in findings if severity_rank(f.severity) == severity_rank(name)
+        ]
+        if group:
+            groups.append((name, sorted(group, key=number)))
+    return groups
+
+
 def threat_anchor(obj: Any) -> str:
     """Anchor of a threat, or of the threat behind a finding."""
     from .anchors import anchor_for_threat_id
@@ -193,6 +234,17 @@ def _relation_functions() -> dict[str, Any]:
         "data_suppressed_of": lambda datum: current().data_suppressed(datum),
         "reported_threats": lambda: current().reported_threats(),
         "excluded_threats": lambda: current().excluded_threats(),
+        "all_assumptions": lambda: current().all_assumptions(),
+        "assumptions_by_risk": lambda: sorted(
+            (a for a in current().all_assumptions() if a.pending),
+            key=lambda a: a.risk_key(),
+        ),
+        "pending_assumptions_of": lambda finding: current().pending_assumptions_of(
+            finding
+        ),
+        "requires_verified_assumptions": lambda: (
+            current().requires_verified_assumptions()
+        ),
     }
 
 
@@ -238,6 +290,7 @@ def _environment(template_dir: Path):
         format_condition=lambda text: format_condition(html.unescape(str(text))),
         split_references=split_references,
         breakable=breakable,
+        drop_dangling_links=drop_dangling_links,
     )
     env.globals.update(_relation_functions())
     env.globals.update(
@@ -251,6 +304,7 @@ def _environment(template_dir: Path):
         legend_entries=legend_entries,
         severity_entries=severity_entries,
         legend_image=legend_image,
+        findings_by_severity=findings_by_severity,
     )
     return env
 
