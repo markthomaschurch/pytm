@@ -1,0 +1,8 @@
+# Only pyproject.toml, README.md, LICENSE, pytm/ and docker/ are used.
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!pytm/
+!docker/
+**/__pycache__

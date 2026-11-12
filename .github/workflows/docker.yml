@@ -1,0 +1,35 @@
+# Build the Docker image and check that it turns a model into diagrams and
+# reports (docker/test-image.sh). Runs only when something that goes into
+# the image changes.
+name: docker
+
+on:
+  push:
+    branches: [ master ]
+    paths: &image-paths
+      - Dockerfile
+      - .dockerignore
+      - docker/**
+      - pytm/**
+      - pyproject.toml
+      - tm.py
+      - .github/workflows/docker.yml
+  pull_request:
+    branches: [ master ]
+    paths: *image-paths
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the image
+        run: docker build -t pytm .
+      - name: Test the image
+        run: docker/test-image.sh pytm
+      - name: Image size
+        run: docker image ls pytm --format '{{.Size}}'
