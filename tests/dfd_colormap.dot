@@ -65,7 +65,7 @@ digraph tm {
 
             datastore_SQLDatabase_0291419f72 [
                 shape = cylinder;
-                color = gold; fillcolor="#ffd80022"; style=filled;
+                color = darkorange2; fillcolor="#ee760022"; style=filled;
                 fontcolor = black;
                 label = "SQL Database";
                 margin = 0.02;
@@ -86,7 +86,7 @@ digraph tm {
 
         actor_User_d2006ce1bb [
             shape = square;
-            color = darkgreen; fillcolor="#00630022"; style=filled;
+            color = gray50;
             fontcolor = black;
             label = "User";
             margin = 0.02;
@@ -95,43 +95,43 @@ digraph tm {
     }
 
     actor_User_d2006ce1bb -> server_Gateway_f8af758679 [
-        color = gold; fillcolor="#ffd80022"; style=filled;
-        fontcolor = gold; fillcolor="#ffd80022"; style=filled;
+        color = darkorange2; fillcolor="#ee760022"; style=filled;
+        fontcolor = darkorange2; fillcolor="#ee760022"; style=filled;
         dir = forward;
         label = "User enters\ncomments (*)";
     ]
 
     server_Gateway_f8af758679 -> server_WebServer_2c440ebe53 [
-        color = gold; fillcolor="#ffd80022"; style=filled;
-        fontcolor = gold; fillcolor="#ffd80022"; style=filled;
+        color = darkorange2; fillcolor="#ee760022"; style=filled;
+        fontcolor = darkorange2; fillcolor="#ee760022"; style=filled;
         dir = forward;
         label = "Request";
     ]
 
     server_WebServer_2c440ebe53 -> datastore_SQLDatabase_0291419f72 [
-        color = gold; fillcolor="#ffd80022"; style=filled;
-        fontcolor = gold; fillcolor="#ffd80022"; style=filled;
+        color = darkorange2; fillcolor="#ee760022"; style=filled;
+        fontcolor = darkorange2; fillcolor="#ee760022"; style=filled;
         dir = forward;
         label = "Insert query with\ncomments";
     ]
 
     datastore_SQLDatabase_0291419f72 -> server_WebServer_2c440ebe53 [
-        color = gold; fillcolor="#ffd80022"; style=filled;
-        fontcolor = gold; fillcolor="#ffd80022"; style=filled;
+        color = darkorange2; fillcolor="#ee760022"; style=filled;
+        fontcolor = darkorange2; fillcolor="#ee760022"; style=filled;
         dir = forward;
         label = "Retrieve comments";
     ]
 
     server_WebServer_2c440ebe53 -> server_Gateway_f8af758679 [
-        color = gold; fillcolor="#ffd80022"; style=filled;
-        fontcolor = gold; fillcolor="#ffd80022"; style=filled;
+        color = darkorange2; fillcolor="#ee760022"; style=filled;
+        fontcolor = darkorange2; fillcolor="#ee760022"; style=filled;
         dir = forward;
         label = "Response";
     ]
 
     server_Gateway_f8af758679 -> actor_User_d2006ce1bb [
-        color = gold; fillcolor="#ffd80022"; style=filled;
-        fontcolor = gold; fillcolor="#ffd80022"; style=filled;
+        color = darkorange2; fillcolor="#ee760022"; style=filled;
+        fontcolor = darkorange2; fillcolor="#ee760022"; style=filled;
         dir = forward;
         label = "Show comments (*)";
     ]

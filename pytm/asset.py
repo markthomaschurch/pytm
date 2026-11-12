@@ -187,7 +187,7 @@ class Lambda(Asset):
         shape = self._shape()
 
         if kwargs.get("colormap", False):
-            color = sev_to_color(self.severity)
+            color = sev_to_color(self.severity, bool(self.findings))
             # Graphviz keeps only the last "style", so combine the shape's
             # rounded corners with the colormap's fill.
             if "style=filled" in color and "style=rounded" in shape:
